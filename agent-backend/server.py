@@ -25,3 +25,4 @@ Tools (class):
     result() ? error(): bool | Error
     log(): void    
 """
+
