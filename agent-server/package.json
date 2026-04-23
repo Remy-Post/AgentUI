@@ -4,14 +4,18 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.114",
     "dotenv": "^17.4.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.4"
   }
 }
