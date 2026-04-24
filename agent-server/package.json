@@ -4,8 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "tsx src/main.ts",
-    "dev": "tsx watch src/main.ts"
+    "dev": "tsx watch src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noCheck",
+    "start": "node dist/src/main.js",
+    "prod": "npm run build && npm run start"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +19,8 @@
     "dotenv": "^17.4.2"
   },
   "devDependencies": {
-    "tsx": "^4.19.4"
+    "@types/node": "^25.6.0",
+    "tsx": "^4.19.4",
+    "typescript": "^6.0.3"
   }
 }
