@@ -1,5 +1,5 @@
 // Tools Protection
-import { type HookCallback, type HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
+import { SyncHookJSONOutput, type HookCallback, type HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
 
 
 
@@ -24,18 +24,4 @@ export const protectSensitiveFiles: HookCallback = async (input) => {
   }
 
   return {}
-}
-
-export const preCompactHook: HookCallback = async (input) => {
-    if (input.hook_event_name !== 'PreCompact') return {}
-    if (1 > 2) {
-        return {
-        hookSpecificOutput: {
-            hookEventName: 'PreCompact',
-            permissionDecision: 'allow',
-            permissionDecisionReason: 'Compact the response'
-        } 
-    }}
-
-    return {}
 }

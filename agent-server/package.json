@@ -16,7 +16,8 @@
   "type": "module",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.114",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "gray-matter": "^4.0.3"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

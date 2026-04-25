@@ -5,15 +5,13 @@ import {
     SDKToolUseSummaryMessage,
   unstable_v2_createSession,
   type SDKAssistantMessage,
-  type SDKResultMessage
+  type SDKResultMessage,
+  type AgentDefinition
 } from '@anthropic-ai/claude-agent-sdk'
 
 import { TOOLS, MODELS } from '../util/vars.ts'
-import { protectSensitiveFiles } from './hooks.ts'
-
-if (!process.env.ANTHROPIC_API_KEY) {
-  console.log('No ANTHROPIC_API_KEY found — using Claude subscription auth.')
-}
+import { protectSensitiveFiles } from '../util/hooks.ts'
+import SUBAGENTS from '../util/subagents.ts'
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 
@@ -22,11 +20,10 @@ const prompt = (question: string): Promise<string> =>
 
 await using session = unstable_v2_createSession({
     model: MODELS.opus,
-    allowedTools: [...TOOLS.allowed],
-    disallowedTools: [...TOOLS.disallowed],
-    hooks: {
-      PreToolUse: [ {matcher: 'Write|Edit|Read', hooks: [protectSensitiveFiles]} ],
-    }
+    hooks: { PreToolUse: [ {matcher: TOOLS.disallowed.join('|'), hooks: [protectSensitiveFiles]} ] },
+
+    // @ts-ignore
+    agents: Object.values(SUBAGENTS) as AgentDefinition[]
   })
 
 console.log('Conversation started. Type "exit" to quit.\n')
