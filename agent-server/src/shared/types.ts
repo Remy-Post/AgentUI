@@ -2,6 +2,7 @@ export type ConversationDTO = {
   _id: string
   title: string
   model: string
+  totalCostUsd?: number
   createdAt: string
   updatedAt: string
 }

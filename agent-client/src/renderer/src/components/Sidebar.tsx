@@ -67,7 +67,12 @@ export default function Sidebar({ selectedId, onSelect, onOpenSettings }: Props)
                 selectedId === c._id ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-300 hover:bg-zinc-800/60'
               }`}
             >
-              <span className="truncate">{c.title}</span>
+              <div className="min-w-0">
+                <div className="truncate">{c.title}</div>
+                {typeof c.totalCostUsd === 'number' && c.totalCostUsd > 0 && (
+                  <div className="text-xs text-zinc-600">${c.totalCostUsd.toFixed(4)}</div>
+                )}
+              </div>
               <span
                 role="button"
                 tabIndex={0}

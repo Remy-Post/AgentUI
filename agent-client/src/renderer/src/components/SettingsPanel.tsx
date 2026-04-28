@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 import { apiFetch } from '../lib/api'
@@ -206,10 +206,6 @@ function SkillsTab(): React.JSX.Element {
     mutationFn: (id: string) => apiFetch<void>(`/api/skills/${id}`, { method: 'DELETE' }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['skills'] }),
   })
-
-  useEffect(() => {
-    void list
-  }, [list])
 
   return (
     <div className="space-y-6">

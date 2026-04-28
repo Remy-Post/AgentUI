@@ -87,7 +87,12 @@ router.post<'/', { id: string }>('/', async (req, res) => {
   } finally {
     markBusy(conversationId, false)
     sse.close()
-    void finalCost
+    if (typeof finalCost === 'number') {
+      await Conversation.updateOne(
+        { _id: conversationId },
+        { $inc: { totalCostUsd: finalCost } },
+      )
+    }
   }
 })
 

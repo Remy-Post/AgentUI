@@ -1,6 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain, session } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/icon.png?asset'
 import { startServerProcess, stopServerProcess } from './server-process'
 import { readSecrets, setApiKey, hasApiKey } from './secrets'
@@ -84,6 +85,10 @@ app.whenReady().then(async () => {
   }
 
   createWindow()
+
+  if (!is.dev) {
+    autoUpdater.checkForUpdatesAndNotify()
+  }
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

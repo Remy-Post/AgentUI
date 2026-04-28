@@ -1,6 +1,30 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. **Read the Stack and Project fundamentals sections below at the start of every conversation before doing other exploration.**
+
+## Stack
+
+- **Runtime**: Node 20.18+ (Electron 39 ships Node 22). `"type": "module"` in both workspaces.
+- **Language**: TypeScript ~5.9.3 across both workspaces (pinned). `module: NodeNext` in `agent-server/`. `agent-client/` uses electron-toolkit's split tsconfigs (`tsconfig.node.json` for main + preload, `tsconfig.web.json` for renderer with bundler resolution).
+- **Server**: Express 5 + Mongoose 8. Default-import `mongoose` (named imports break under ESM). `@anthropic-ai/claude-agent-sdk ^0.2.114` drives chat turns; sessions persist via the SDK's `unstable_v2_createSession` (alpha API, disk-based skill/agent registration only).
+- **Database**: MongoDB local at `mongodb://127.0.0.1:27017/agent-desk`. Assume `mongod` is running. Not bundled.
+- **Desktop shell**: Electron 39 + electron-vite 5 + electron-builder 26.
+- **Renderer**: React 19 + Vite 7 + Tailwind v4 (via `@tailwindcss/vite` plugin and `@import "tailwindcss"`). State: TanStack Query for server data, Zustand for UI/streaming state. Markdown via `react-markdown` + `remark-gfm`. Icons from `lucide-react`.
+- **Streaming**: Server-Sent Events. `POST /api/sessions/:id/messages` returns `text/event-stream` directly; renderer parses via `fetch` + `ReadableStream` because `EventSource` is GET-only.
+- **Secrets**: Electron `safeStorage` (Keychain / DPAPI / libsecret) for `ANTHROPIC_API_KEY`. Never persisted to Mongo.
+- **Packaging**: Server ships via electron-builder `extraResources`, not asar (utilityProcess.fork + native deps don't mix well with asar).
+
+## Project fundamentals
+
+- **Internal imports in `agent-server/` MUST end in `.ts`** (because of `allowImportingTsExtensions` + `rewriteRelativeImportExtensions`). Example: `import { TOOLS } from '../util/vars.ts'`. The compiler rewrites the extension to `.js` at emit time. This does not apply to `agent-client/` (bundler resolution).
+- **Two server entrypoints**: `agent-server/src/server.ts` (Express, used by the desktop app) and `agent-server/src/main.ts` (readline REPL CLI, available as `npm run cli`). The CLI is unchanged from before the MERN refactor and is the fallback path; the server is primary.
+- **Process model in production**: Electron main forks Express as a `utilityProcess` child, port handoff via `process.parentPort.postMessage({type:'ready', port})`. In dev, Express runs separately via `tsx watch`; main reads `AGENT_SERVER_PORT` (default 3001) from env.
+- **CSP**: applied at runtime via `session.defaultSession.webRequest.onHeadersReceived` because the chosen port is dynamic. The static `<meta>` CSP in `index.html` is omitted.
+- **Skills/Subagents source of truth**: MongoDB on the server side. The SDK does not accept in-memory `agents`/`skills` config, so the server materializes Mongo records to `agent-server/.claude/agents/<name>.md` and `.claude/skills/<name>/SKILL.md` via `src/agent/scaffold.ts`, and uses `settingSources: ['project']`. CRUD endpoints regenerate the affected files. The CLI (`util/initHelper.ts`) keeps writing from in-code TS definitions; CLI writes are skip-if-exists, server writes overwrite. Don't run both at once.
+- **Session caching**: one Claude SDK session per `conversationId`, LRU cache, max 8 concurrent, idle eviction at 30 min. Concurrent stream requests on the same conversation return 409. See `src/agent/session.ts`.
+- **`process.parentPort` is undefined when not launched by `utilityProcess.fork`**. Always guard with `?.`. The local type augmentation lives at `agent-server/src/types/globals.d.ts`.
+- **`@shared/*` alias** (in renderer only) maps to `agent-server/src/shared/types.ts`. Type-only imports. Never import runtime values from agent-server into the renderer.
+- **No tests, no linter wired in `agent-server/`**. `agent-client/` has eslint + prettier but they're not on a mandatory hook.
 
 ## Mandatory check
 

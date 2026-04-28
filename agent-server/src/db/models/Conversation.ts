@@ -4,6 +4,7 @@ const ConversationSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, default: 'New conversation' },
     model: { type: String, required: true },
+    totalCostUsd: { type: Number, default: 0 },
   },
   { timestamps: true },
 )
