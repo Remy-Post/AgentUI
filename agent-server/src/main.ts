@@ -6,12 +6,16 @@ import {
   unstable_v2_createSession,
   type SDKAssistantMessage,
   type SDKResultMessage,
-  type AgentDefinition
 } from '@anthropic-ai/claude-agent-sdk'
 
 import { TOOLS, MODELS } from '../util/vars.ts'
 import { protectSensitiveFiles } from '../util/hooks.ts'
 import SUBAGENTS from '../util/subagents.ts'
+import SKILLS from '../util/skills.ts'
+import { ensureSubagentFiles, ensureSkillFiles } from '../util/initHelper.ts'
+
+await ensureSubagentFiles(SUBAGENTS as Record<string, Record<string, unknown>>)
+await ensureSkillFiles(SKILLS as Record<string, Record<string, unknown>>)
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 
@@ -20,10 +24,8 @@ const prompt = (question: string): Promise<string> =>
 
 await using session = unstable_v2_createSession({
     model: MODELS.opus,
+    settingSources: ['project'],
     hooks: { PreToolUse: [ {matcher: TOOLS.disallowed.join('|'), hooks: [protectSensitiveFiles]} ] },
-
-    // @ts-ignore
-    agents: Object.values(SUBAGENTS) as AgentDefinition[]
   })
 
 console.log('Conversation started. Type "exit" to quit.\n')

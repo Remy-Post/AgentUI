@@ -12,7 +12,7 @@ export const protectSensitiveFiles: HookCallback = async (input) => {
   const fileName = filePath.split(/[/\\]/).pop() ?? ''
 
   if (
-    [".env", ".env.local", ".env.development.local", ".env.test.local", ".env.development", ".env.test", ".env.production.local"].includes(fileName)
+    fileName.includes('.env')
     ) {
     return {
         hookSpecificOutput: {

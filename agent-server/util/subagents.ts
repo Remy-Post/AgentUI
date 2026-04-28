@@ -1,6 +1,5 @@
 import { type AgentDefinition } from '@anthropic-ai/claude-agent-sdk'
-import { MODELS, TOOLS } from './vars.ts'
-import { protectSensitiveFiles } from './hooks.ts'
+import { MODELS } from './vars.ts'
 
 
 export const MAIN_AGENT: AgentDefinition = {
@@ -23,9 +22,6 @@ export const EXMAIL_AGENT: AgentDefinition = {
     prompt: 'You are a subagent that can be used to send emails',
     initialPrompt: 'You are a subagent that can be used to send emails',
 
-    hooks: {
-        PreToolUse: [ {matcher: TOOLS.disallowed.join('|'), hooks: [protectSensitiveFiles]} ]
-    },
     model: MODELS.sonnet,
     maxTurns: 1000,
     memory: 'local',
