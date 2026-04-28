@@ -9,8 +9,11 @@
   ],
   "scripts": {
     "dev": "concurrently -n srv,app -c yellow,cyan \"npm:dev -w agent-server\" \"npm:dev -w agent-client\"",
+    "start": "npm run build && npm run start -w agent-client",
     "cli": "npm run cli -w agent-server",
-    "typecheck": "npm run typecheck -w agent-server && npm run typecheck -w agent-client",
+    "typecheck": "npm run typecheck:server && npm run typecheck:web",
+    "typecheck:server": "npm run typecheck -w agent-server",
+    "typecheck:web": "npm run typecheck -w agent-client",
     "build": "npm run build -w agent-server && npm run build -w agent-client",
     "build:win": "npm run build -w agent-server && npm run build:win -w agent-client",
     "build:mac": "npm run build -w agent-server && npm run build:mac -w agent-client",
