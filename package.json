@@ -1,0 +1,26 @@
+{
+  "name": "agent-ui",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Electron desktop app wrapping the Claude Agent SDK as a chat UI",
+  "workspaces": [
+    "agent-client",
+    "agent-server"
+  ],
+  "scripts": {
+    "dev": "concurrently -n srv,app -c yellow,cyan \"npm:dev -w agent-server\" \"npm:dev -w agent-client\"",
+    "cli": "npm run cli -w agent-server",
+    "typecheck": "npm run typecheck -w agent-server && npm run typecheck -w agent-client",
+    "build": "npm run build -w agent-server && npm run build -w agent-client",
+    "build:win": "npm run build -w agent-server && npm run build:win -w agent-client",
+    "build:mac": "npm run build -w agent-server && npm run build:mac -w agent-client",
+    "build:linux": "npm run build -w agent-server && npm run build:linux -w agent-client",
+    "build:unpack": "npm run build -w agent-server && npm run build:unpack -w agent-client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "engines": {
+    "node": ">=20.18"
+  }
+}

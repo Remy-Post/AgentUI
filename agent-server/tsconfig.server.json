@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": false
+  },
+  "include": [
+    "src/**/*.ts",
+    "util/hooks.ts",
+    "util/vars.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

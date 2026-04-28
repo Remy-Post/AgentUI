@@ -4,52 +4,103 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Mandatory check
 
-Run `npm run typecheck` (from `agent-server/`) after every modification. Do not consider a change complete until typecheck passes.
+Run `npm run typecheck` from the repo root after every modification. It runs both workspace typechecks. Do not consider a change complete until both pass.
 
 ## Repository layout
 
-This repo has two top-level apps:
+Single-user Electron desktop app structured as MERN: Mongoose + Express child process + React renderer + Node (Electron main + Express). npm workspaces at the root.
 
-- `agent-server/` — Node CLI that drives the Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`). This is the active codebase.
-- `agent-client/` — Electron + React + Tailwind desktop shell. Listed in `.gitignore` (`agent-client/*`), so treat it as untracked / out-of-scope unless the user explicitly asks. Don't propagate changes into it by default.
+- `agent-server/` — Node ESM. Hosts the Claude Agent SDK, Express HTTP API, and Mongoose models. Has two entrypoints: `src/server.ts` (Express, used by the desktop app) and `src/main.ts` (readline REPL, available as `npm run cli`).
+- `agent-client/` — Electron 39 + React 19 + Tailwind v4 + electron-vite. Forks the compiled server as a `utilityProcess` child in production; in dev the server runs separately via `tsx watch`.
+- `storage/`, `.env`, `agent-client/{out,dist,node_modules}`, and runtime-scaffolded `agent-server/.claude/agents/` + `.claude/skills/` are gitignored.
 
-`storage/` and `.env` are also gitignored.
-
-## Commands (run from `agent-server/`)
+## Commands (run from repo root)
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | REPL via `tsx watch src/main.ts` — primary dev loop |
-| `npm run typecheck` | `tsc --noEmit` — run after every change |
-| `npm run build` | `tsc --noCheck` → `dist/` (skips type errors; rely on `typecheck` for safety) |
-| `npm run start` | `node dist/src/main.js` against the built output |
-| `npm run prod` | `build` + `start` |
+| `npm run dev` | `concurrently` runs `tsx watch agent-server/src/server.ts` and `electron-vite dev` |
+| `npm run cli` | Readline REPL via `tsx watch agent-server/src/main.ts`, unchanged from before |
+| `npm run typecheck` | Runs `tsc --noEmit` in both workspaces |
+| `npm run build` | `tsc -p agent-server/tsconfig.server.json` then `electron-vite build` |
+| `npm run build:win` / `:mac` / `:linux` | Builds + electron-builder for the platform |
+| `npm run build:unpack` | Builds + `electron-builder --dir` for inspection without code signing |
 
-There is no test suite and no linter wired up in `agent-server/`. `agent-client/` has its own `npm run lint` / `typecheck` / `dev` (electron-vite) but is not part of the active workflow.
+`agent-server/` TS config: `module: NodeNext`, `allowImportingTsExtensions`, `rewriteRelativeImportExtensions`. **Internal imports must end in `.ts`** (e.g. `import { TOOLS } from '../util/vars.ts'`). `package.json` is `"type": "module"`. Server build uses `tsconfig.server.json`; the wider `tsconfig.json` covers typecheck.
 
-The TS config uses `module: NodeNext` with `allowImportingTsExtensions` + `rewriteRelativeImportExtensions`, so **internal imports must end in `.ts`** (e.g. `import { TOOLS } from '../util/vars.ts'`). `package.json` is `"type": "module"`.
+`agent-client/` uses `tsconfig.web.json` (renderer) and `tsconfig.node.json` (main + preload). Renderer has bundler resolution and a `@shared/*` path alias to `../agent-server/src/shared/*` for type-only DTO imports.
 
 ## Architecture
 
-The server is a single REPL process. Entry point: `agent-server/src/main.ts`.
+### Process model
 
-Boot sequence:
+Three runtime processes in production:
 
-1. `dotenv/config` loads `.env`.
-2. `ensureSubagentFiles()` and `ensureSkillFiles()` (`util/initHelper.ts`) materialize the in-code agent/skill definitions to `.claude/agents/*.md` and `.claude/skills/*.md` on disk, with YAML frontmatter (via `gray-matter`). Existing files are left alone — this is one-way scaffolding, not sync.
-3. `unstable_v2_createSession({ settingSources: ['project'], hooks: { PreToolUse: [...] } })` opens an Agent SDK session that reads the on-disk `.claude/` config the previous step just wrote. Subagents/skills defined in TS are thus exposed to the session through the file system, not the SDK constructor.
-4. A `readline` loop sends user input via `session.send()` and switches over the streamed messages (`assistant`, `result`, `tool_use_summary`, `tool_progress`).
+1. **Electron main** (`agent-client/src/main/`). Decrypts the API key from `safeStorage`, forks the Express server via `utilityProcess.fork`, waits for `{type: 'ready', port}` on `parentPort`, applies a runtime CSP via `webRequest.onHeadersReceived` (because the chosen port is dynamic), and opens the BrowserWindow.
+2. **Express child** (`agent-server/src/server.ts`). Binds `127.0.0.1:0` so the OS picks a port, posts it back via `process.parentPort.postMessage`, hosts CRUD + SSE endpoints, owns the Claude Agent SDK session cache and the Mongoose connection.
+3. **Renderer**. React + TanStack Query for server state, Zustand for transient UI state. Calls Express via `fetch`. Streams turn events via fetch + manual SSE parsing (POST endpoint precludes `EventSource`).
 
-Key modules in `agent-server/util/`:
+In dev, electron-vite runs the renderer + main; `tsx watch` runs the server separately. The main process skips the fork and reads `AGENT_SERVER_PORT` (default `3001`) from the env.
 
-- `vars.ts` — model IDs (`opus = claude-opus-4-7`, `sonnet = claude-sonnet-4-6`, `haiku = claude-haiku-4-5-20251001`) and `TOOLS.allowed` / `TOOLS.disallowed`. `TOOLS.disallowed` is joined into the PreToolUse hook matcher regex; it's not a global tool block-list, just the set of tool names the protection hook runs against.
-- `hooks.ts` — `protectSensitiveFiles` PreToolUse callback. Denies any `Write`/`Edit` whose `file_path` basename contains `.env`. Add new sensitive-file rules here, not at call sites.
-- `subagents.ts` — `AgentDefinition` records exported as a default object keyed by agent name. The `default` export is what `initHelper` iterates; constants not in that map (e.g. `MAIN_AGENT`) are inert. The commented type definition at the bottom of the file is the source of truth for available fields.
-- `skills.ts` — same pattern as subagents, currently empty. Add entries to the default-exported object, not just as named exports.
-- `initHelper.ts` — generic file writer. `NON_SERIALIZABLE_KEYS` (`prompt`, `hooks`, `mcpServers`) and functions are stripped from frontmatter; `prompt` becomes the markdown body; `tools` arrays are joined with `, `.
+### MongoDB
+
+Local at `mongodb://127.0.0.1:27017/agent-desk` via Mongoose. Models in `agent-server/src/db/models/`:
+
+- `Conversation` — `{ title, model, timestamps }`
+- `Message` — `{ conversationId, role: 'user'|'assistant'|'tool'|'system', content (Mixed), createdAt, costUsd? }`
+- `Skill` — `{ name unique, description, body, parameters (Mixed), allowedTools, enabled }`
+- `Subagent` — `{ name unique, description, prompt, model, effort, permissionMode, tools, enabled }`
+
+Assume `mongod` is running locally. Server fails gracefully on startup if the DB is unreachable; `/health` reports `{ db: 'down' }`.
+
+### Subagents and skills source of truth
+
+The SDK's `unstable_v2_createSession` does not accept in-memory `agents` or `skills` config maps; it reads from disk via `settingSources`. The server keeps Mongo as the source of truth and materializes enabled records to `agent-server/.claude/agents/<name>.md` and `agent-server/.claude/skills/<name>/SKILL.md` via `src/agent/scaffold.ts`. Sync runs on startup and on every Skill/Subagent CRUD endpoint.
+
+The CLI (`src/main.ts`) is unchanged: it uses `util/initHelper.ts` to scaffold from in-code TS definitions in `util/subagents.ts` and `util/skills.ts`. CLI's writes are skip-if-exists; server's writes overwrite. Running both at once is not supported.
+
+### Session caching
+
+`src/agent/session.ts` keeps an LRU of one SDK session per `conversationId`. Hard cap 8 concurrent, idle eviction at 30 min. Stream errors drop the cache entry and emit a synthetic `result` SSE event. Concurrent stream requests on the same conversation return `409`.
+
+### Secrets
+
+API key flows: SettingsPanel → IPC `secrets:setApiKey` → main → `safeStorage.encryptString` → `app.getPath('userData')/secrets.bin`. On startup, main decrypts and passes `ANTHROPIC_API_KEY` into the server child's env. Never persisted to Mongo. On Linux without a keyring, `safeStorage.isEncryptionAvailable()` returns false and the renderer surfaces an error.
+
+## Key modules
+
+`agent-server/`:
+
+- `src/server.ts` — Express bootstrap, port handoff via `process.parentPort` (Electron utility process IPC).
+- `src/agent/session.ts` — LRU SDK session cache, hooks wiring (PreToolUse + `protectSensitiveFiles`), syncs Mongo to disk before opening any session.
+- `src/agent/scaffold.ts` — Mongo to `.claude/` writer; mirrors `util/initHelper.ts` semantics but in overwrite mode.
+- `src/agent/sse.ts` — `text/event-stream` writer with 30s heartbeat.
+- `src/routes/{conversations,messages,skills,subagents}.ts` — REST + SSE.
+- `src/db/{connection,models/*}.ts` — Mongoose. Default-import `mongoose` (named imports break under ESM).
+- `src/shared/types.ts` — DTOs and SSE payload shapes; aliased as `@shared/*` from the renderer.
+- `util/vars.ts` — `MODELS` and `TOOLS`. `TOOLS.disallowed.join('|')` is the PreToolUse hook matcher regex; not a global block-list.
+- `util/hooks.ts` — `protectSensitiveFiles` denies Write/Edit on basenames containing `.env`. Add new sensitive-file rules here.
+- `util/initHelper.ts`, `util/subagents.ts`, `util/skills.ts` — CLI-only path. Server does not read these.
+
+`agent-client/`:
+
+- `src/main/index.ts` — app lifecycle, IPC handlers, runtime CSP, calls `startServerProcess`.
+- `src/main/server-process.ts` — `utilityProcess.fork` against `process.resourcesPath/server/src/server.js` in prod; reads `AGENT_SERVER_PORT` in dev.
+- `src/main/secrets.ts` — `safeStorage` round-trip for `ANTHROPIC_API_KEY`.
+- `src/preload/index.ts` — typed `window.api` (`getServerPort`, `setApiKey`, `hasApiKey`, `getAppVersion`). No raw `ipcRenderer`.
+- `src/renderer/src/lib/api.ts` — memoizes `window.api.getServerPort()` and exposes `apiFetch<T>`.
+- `src/renderer/src/hooks/useSSE.ts` — `streamPost` reads SSE from a POST response via `fetch().body.getReader()`.
+- `src/renderer/src/store/streaming.ts` — Zustand store for in-flight assistant text and tool events.
+- `src/renderer/src/components/{Sidebar,ChatView,MessageList,Composer,SettingsPanel}.tsx`.
+
+## Packaging
+
+`electron-builder.yml` ships the compiled server via `extraResources` (not asar) because `utilityProcess.fork` against asar plus native deps (`bson`) is fragile. Resource layout: `resources/server/{src,util}/*.js` plus `resources/server/node_modules/`. If `bson` ends up in the root hoisted `node_modules`, run `npm run rebuild-natives -w agent-client` (calls `electron-builder install-app-deps`) before packaging.
 
 ## Conventions
 
-- When adding a subagent or skill, register it in the **default export object** in `subagents.ts` / `skills.ts`. Anything outside that map is not surfaced to the session.
-- Generated files in `.claude/agents/` and `.claude/skills/` are treated as the persisted source for the SDK. `initHelper` will not overwrite them — to regenerate, delete the `.md` and restart.
-- New tool-protection rules live in `util/hooks.ts`; wire the matcher via `TOOLS.disallowed` in `vars.ts` so the hook actually fires.
+- `npm run typecheck` from the repo root is mandatory. It runs both workspace typechecks.
+- New REST endpoints under `agent-server/src/routes/`. Mount in `src/server.ts`.
+- New tool-protection rules live in `util/hooks.ts`. Wire matchers via `TOOLS.disallowed` in `util/vars.ts`.
+- New skills/subagents go through the Mongo CRUD endpoints (or directly via the SettingsPanel UI). The server scaffolds them to `.claude/` automatically. Do not edit `.claude/agents/*.md` or `.claude/skills/*/SKILL.md` by hand on the server side; they are overwritten on every CRUD call.
+- For the CLI fallback, register subagents/skills in the default export object of `util/subagents.ts` / `util/skills.ts`.
+- Renderer DTOs live in `agent-server/src/shared/types.ts` and are imported via `@shared/*` (type-only). Don't import runtime values from agent-server into the renderer.

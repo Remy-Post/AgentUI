@@ -11,6 +11,18 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+extraResources:
+  - from: ../agent-server/dist
+    to: server
+  - from: ../agent-server/node_modules
+    to: server/node_modules
+    filter:
+      - '**/*'
+      - '!**/*.md'
+      - '!**/*.ts'
+      - '!**/*.map'
+      - '!**/test/**'
+      - '!**/tests/**'
 win:
   executableName: agent-desk
 nsis:

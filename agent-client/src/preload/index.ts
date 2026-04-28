@@ -1,12 +1,14 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 
-// Custom APIs for renderer
-const api = {}
+const api = {
+  getServerPort: (): Promise<number | null> => ipcRenderer.invoke('server:getPort'),
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
+  setApiKey: (key: string): Promise<{ ok: true } | { ok: false; reason: string }> =>
+    ipcRenderer.invoke('secrets:setApiKey', key),
+  hasApiKey: (): Promise<boolean> => ipcRenderer.invoke('secrets:hasApiKey'),
+}
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
@@ -20,3 +22,5 @@ if (process.contextIsolated) {
   // @ts-ignore (define in dts)
   window.api = api
 }
+
+export type DesktopApi = typeof api

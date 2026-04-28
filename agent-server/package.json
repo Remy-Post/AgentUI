@@ -1,14 +1,16 @@
 {
   "name": "agent-server",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Express + Mongoose backend that hosts the Claude Agent SDK and streams events over SSE",
+  "main": "dist/src/server.js",
   "scripts": {
-    "dev": "tsx watch src/main.ts",
+    "dev": "tsx watch src/server.ts",
+    "cli": "tsx watch src/main.ts",
     "typecheck": "tsc --noEmit",
-    "build": "tsc --noCheck",
-    "start": "node dist/src/main.js",
-    "prod": "npm run build && npm run start"
+    "build": "tsc -p tsconfig.server.json",
+    "build:all": "tsc",
+    "start": "node dist/src/server.js",
+    "start:cli": "node dist/src/main.js"
   },
   "keywords": [],
   "author": "",
@@ -16,12 +18,17 @@
   "type": "module",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.114",
+    "cors": "^2.8.5",
     "dotenv": "^17.4.2",
-    "gray-matter": "^4.0.3"
+    "express": "^5.1.0",
+    "gray-matter": "^4.0.3",
+    "mongoose": "^8.20.0"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.19.1",
     "tsx": "^4.19.4",
-    "typescript": "^6.0.3"
+    "typescript": "~5.9.3"
   }
 }

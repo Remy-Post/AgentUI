@@ -1,34 +1,32 @@
-import Versions from './components/Versions'
-import electronLogo from './assets/electron.svg'
+import { useState } from 'react'
+import Sidebar from './components/Sidebar'
+import ChatView from './components/ChatView'
+import SettingsPanel from './components/SettingsPanel'
+
+type View = 'chat' | 'settings'
 
 function App(): React.JSX.Element {
-  const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
+  const [view, setView] = useState<View>('chat')
+  const [conversationId, setConversationId] = useState<string | null>(null)
 
   return (
-    <>
-      <img alt="logo" className="logo" src={electronLogo} />
-      <div className="creator">Powered by electron-vite</div>
-      <div className="text">
-        Build an Electron app with <span className="react">React</span>
-        &nbsp;and <span className="ts">TypeScript</span>
-      </div>
-      <p className="tip">
-        Please try pressing <code>F12</code> to open the devTool
-      </p>
-      <div className="actions">
-        <div className="action">
-          <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">
-            Documentation
-          </a>
-        </div>
-        <div className="action">
-          <a target="_blank" rel="noreferrer" onClick={ipcHandle}>
-            Send IPC
-          </a>
-        </div>
-      </div>
-      <Versions></Versions>
-    </>
+    <div className="flex h-full w-full bg-zinc-950 text-zinc-100">
+      <Sidebar
+        selectedId={conversationId}
+        onSelect={(id) => {
+          setConversationId(id)
+          setView('chat')
+        }}
+        onOpenSettings={() => setView('settings')}
+      />
+      <main className="flex-1 min-w-0">
+        {view === 'settings' ? (
+          <SettingsPanel onClose={() => setView('chat')} />
+        ) : (
+          <ChatView conversationId={conversationId} />
+        )}
+      </main>
+    </div>
   )
 }
 
