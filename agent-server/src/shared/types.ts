@@ -52,6 +52,11 @@ export type ToolDTO = {
   enabled: boolean
 }
 
+export type HealthDTO = {
+  db: 'up' | 'down'
+  sdk: 'ready' | 'error'
+}
+
 export type UpdateConversationRequest = Partial<{
   title: string
   effort: 'low' | 'medium' | 'high'

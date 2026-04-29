@@ -1,10 +1,12 @@
 import 'dotenv/config'
 import express from 'express'
+import type { NextFunction, Request, Response } from 'express'
 import cors from 'cors'
 import type { AddressInfo } from 'net'
 import { connectDb, dbStatus } from './db/connection.ts'
 import { syncFromDb } from './agent/scaffold.ts'
 import { sdkReady } from './agent/session.ts'
+import type { HealthDTO } from './shared/types.ts'
 import conversationsRouter from './routes/conversations.ts'
 import messagesRouter from './routes/messages.ts'
 import skillsRouter from './routes/skills.ts'
@@ -18,11 +20,22 @@ app.use(cors({ origin: true }))
 app.use(express.json({ limit: '4mb' }))
 
 app.get('/health', (_req, res) => {
-  res.json({
+  const health: HealthDTO = {
     db: dbStatus(),
     sdk: sdkReady() ? 'ready' : 'error',
-  })
+  }
+  res.json(health)
 })
+
+function requireDb(_req: Request, res: Response, next: NextFunction): void {
+  if (dbStatus() !== 'up') {
+    res.status(503).json({ error: 'db_unavailable' })
+    return
+  }
+  next()
+}
+
+app.use('/api', requireDb)
 
 app.use('/api/sessions', conversationsRouter)
 app.use('/api/sessions/:id/messages', messagesRouter)
@@ -41,7 +54,8 @@ async function start(): Promise<void> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('[server] startup error:', message)
-    process.parentPort?.postMessage({ type: 'error', message })
+    // DB/scaffold startup errors are reported through /health; keep the
+    // listener discoverable so the renderer can show the precise state.
   }
 
   const server = app.listen(desiredPort, '127.0.0.1', () => {

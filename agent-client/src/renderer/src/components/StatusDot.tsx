@@ -2,7 +2,21 @@ import { useServerStatus } from '../hooks/useServerStatus'
 
 export default function StatusDot(): React.JSX.Element {
   const status = useServerStatus()
-  const label = status === 'connected' ? 'connected' : status === 'checking' ? 'checking' : 'offline'
-  const className = status === 'connected' ? 'status-dot' : 'status-dot disconnected'
+  const labelByStatus = {
+    connected: 'connected',
+    checking: 'checking',
+    'server-unreachable': 'server offline',
+    'db-down': 'db down',
+    'sdk-not-ready': 'sdk error',
+  } satisfies Record<typeof status, string>
+  const classByStatus = {
+    connected: 'status-dot',
+    checking: 'status-dot checking',
+    'server-unreachable': 'status-dot disconnected',
+    'db-down': 'status-dot warning',
+    'sdk-not-ready': 'status-dot warning',
+  } satisfies Record<typeof status, string>
+  const label = labelByStatus[status]
+  const className = classByStatus[status]
   return <span className={className}>{label}</span>
 }

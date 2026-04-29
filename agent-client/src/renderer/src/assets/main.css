@@ -198,6 +198,8 @@
 .sidebar-foot { border-top: 1px solid var(--color-line); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .status-dot { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); }
 .status-dot::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: var(--color-good); }
+.status-dot.checking::before { background: var(--color-muted); }
+.status-dot.warning::before { background: var(--color-tool); }
 .status-dot.disconnected::before { background: var(--color-bad); }
 
 /* ===== Center: chat ===== */

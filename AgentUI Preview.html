@@ -316,6 +316,123 @@
         text-transform: uppercase; letter-spacing: 0.06em;
       }
 
+      /* Composer right cluster: context disk + send */
+      .composer-actions { display: inline-flex; align-items: center; gap: 10px; }
+
+      /* Context disk */
+      .ctx-disk {
+        position: relative;
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 4px 10px 4px 6px;
+        border: 1px solid var(--color-line-2);
+        background: var(--color-paper);
+        border-radius: 999px;
+        cursor: default;
+        transition: border-color .12s, background .12s;
+      }
+      .ctx-disk:hover { border-color: var(--color-line-3, var(--color-ink-3)); background: var(--color-active); }
+      .ctx-disk svg { width: 18px; height: 18px; display: block; }
+      .ctx-disk .ctx-track { stroke: var(--color-line-2); }
+      .ctx-disk .ctx-fill { stroke: var(--ctx-color, var(--color-ink-3)); transition: stroke-dashoffset .25s ease, stroke .25s ease; }
+      .ctx-disk .ctx-pct {
+        font-family: var(--font-mono); font-size: 11px;
+        color: var(--ctx-color, var(--color-ink-2));
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.02em;
+        transition: color .25s ease;
+      }
+
+      /* Tier colors (driven by --ctx-color set on .ctx-disk) */
+      .ctx-disk[data-tier="t1"] { --ctx-color: var(--color-ink-3); }            /* 0–20%  cool neutral */
+      .ctx-disk[data-tier="t2"] { --ctx-color: var(--color-ink-2); }            /* 20–60% darker neutral */
+      .ctx-disk[data-tier="t3"] { --ctx-color: oklch(72% 0.14 75); }            /* 60–78% amber */
+      .ctx-disk[data-tier="t4"] { --ctx-color: oklch(64% 0.18 45); }            /* 78–93% orange */
+      .ctx-disk[data-tier="t5"] { --ctx-color: oklch(58% 0.22 25); }            /* 93%+   red, autocompact zone */
+
+      /* Popover */
+      .ctx-pop {
+        position: absolute; bottom: calc(100% + 10px); right: 0;
+        width: 280px;
+        background: var(--color-paper);
+        border: 1px solid var(--color-line-2);
+        border-radius: 10px;
+        box-shadow: 0 10px 30px -12px rgba(0,0,0,0.18), 0 4px 10px -4px rgba(0,0,0,0.08);
+        padding: 12px 14px;
+        opacity: 0; pointer-events: none;
+        transform: translateY(4px);
+        transition: opacity .14s ease, transform .14s ease;
+        z-index: 30;
+      }
+      .ctx-disk:hover .ctx-pop,
+      .ctx-disk:focus-within .ctx-pop { opacity: 1; pointer-events: auto; transform: translateY(0); }
+      .ctx-pop::after {
+        content: ""; position: absolute; right: 16px; top: 100%;
+        width: 10px; height: 10px;
+        background: var(--color-paper);
+        border-right: 1px solid var(--color-line-2);
+        border-bottom: 1px solid var(--color-line-2);
+        transform: translateY(-5px) rotate(45deg);
+      }
+      .ctx-pop .pop-head {
+        display: flex; align-items: baseline; justify-content: space-between;
+        margin-bottom: 8px;
+      }
+      .ctx-pop .pop-title {
+        font-family: var(--font-mono); font-size: 10px;
+        text-transform: uppercase; letter-spacing: 0.1em;
+        color: var(--color-muted);
+      }
+      .ctx-pop .pop-tier {
+        font-family: var(--font-mono); font-size: 10px;
+        color: var(--ctx-color, var(--color-ink-2));
+        text-transform: uppercase; letter-spacing: 0.08em;
+      }
+      .ctx-pop .pop-total {
+        font-family: var(--font-serif, ui-serif, Georgia, serif);
+        font-size: 18px; color: var(--color-ink);
+        font-variant-numeric: tabular-nums;
+        line-height: 1.1;
+      }
+      .ctx-pop .pop-total .pop-of {
+        color: var(--color-muted);
+        font-size: 13px;
+      }
+      .ctx-pop .pop-bar {
+        position: relative; height: 4px; border-radius: 2px;
+        background: var(--color-line-2);
+        margin: 10px 0 12px;
+        overflow: hidden;
+      }
+      .ctx-pop .pop-bar > span {
+        position: absolute; left: 0; top: 0; bottom: 0;
+        background: var(--ctx-color, var(--color-ink-3));
+        border-radius: 2px;
+        transition: width .25s ease, background .25s ease;
+      }
+      .ctx-pop .pop-list {
+        display: grid; grid-template-columns: 1fr auto; gap: 4px 10px;
+      }
+      .ctx-pop .pop-list .lbl {
+        display: inline-flex; align-items: center; gap: 8px;
+        font-size: 12px; color: var(--color-ink-2);
+      }
+      .ctx-pop .pop-list .lbl::before {
+        content: ""; width: 8px; height: 8px; border-radius: 2px;
+        background: var(--swatch, var(--color-ink-3));
+      }
+      .ctx-pop .pop-list .val {
+        font-family: var(--font-mono); font-size: 11.5px;
+        color: var(--color-ink);
+        font-variant-numeric: tabular-nums;
+      }
+      .ctx-pop .pop-foot {
+        margin-top: 10px; padding-top: 10px;
+        border-top: 1px solid var(--color-line);
+        font-size: 11px; color: var(--color-muted);
+        line-height: 1.45;
+      }
+      .ctx-pop .pop-foot strong { color: var(--color-ink-2); font-weight: 500; }
+
       /* Right rail */
       .rail {
         position: relative;
@@ -851,10 +968,51 @@
                 <span class="chrome">·</span>
                 <span class="chrome mono">142 chars</span>
               </div>
-              <button class="send-btn">
-                <svg class="ic-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
-                Send
-              </button>
+              <div class="composer-actions">
+                <div class="ctx-disk" id="ctx-disk" data-tier="t3" tabindex="0" aria-label="Context window usage">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle class="ctx-track" cx="12" cy="12" r="9" fill="none" stroke-width="2.5"/>
+                    <circle class="ctx-fill"  cx="12" cy="12" r="9" fill="none" stroke-width="2.5"
+                            stroke-linecap="round"
+                            transform="rotate(-90 12 12)"
+                            stroke-dasharray="56.549" stroke-dashoffset="21.49"/>
+                  </svg>
+                  <span class="ctx-pct" id="ctx-pct">62%</span>
+
+                  <div class="ctx-pop" role="tooltip">
+                    <div class="pop-head">
+                      <span class="pop-title">Context window</span>
+                      <span class="pop-tier" id="pop-tier">Watch</span>
+                    </div>
+                    <div class="pop-total">
+                      <span id="pop-used">124,000</span>
+                      <span class="pop-of">/ <span id="pop-total">200,000</span> tokens</span>
+                    </div>
+                    <div class="pop-bar"><span id="pop-bar-fill" style="width: 62%"></span></div>
+                    <div class="pop-list">
+                      <span class="lbl" style="--swatch: oklch(70% 0.04 260)">System prompt</span>
+                      <span class="val" id="pop-system">8,420</span>
+
+                      <span class="lbl" style="--swatch: oklch(72% 0.06 240)">Messages</span>
+                      <span class="val" id="pop-messages">86,300</span>
+
+                      <span class="lbl" style="--swatch: oklch(74% 0.08 200)">Tools</span>
+                      <span class="val" id="pop-tools">12,100</span>
+
+                      <span class="lbl" style="--swatch: oklch(76% 0.10 160)">Files &amp; context</span>
+                      <span class="val" id="pop-files">17,180</span>
+                    </div>
+                    <div class="pop-foot">
+                      <strong>$0.62</strong> spent so far · <strong>14</strong> messages in window · auto-compacts at <strong>93%</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <button class="send-btn">
+                  <svg class="ic-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+                  Send
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1673,6 +1831,52 @@
       }
       const m = document.querySelector('.messages')
       if (m) m.scrollTop = m.scrollHeight
+
+      // ============================================================
+      //   CONTEXT DISK: percentage → donut + tier + popover
+      // ============================================================
+      ;(function () {
+        const disk = document.getElementById('ctx-disk')
+        if (!disk) return
+        const fill = disk.querySelector('.ctx-fill')
+        const pctEl = document.getElementById('ctx-pct')
+        const popUsed = document.getElementById('pop-used')
+        const popTotal = document.getElementById('pop-total')
+        const popBar = document.getElementById('pop-bar-fill')
+        const popTier = document.getElementById('pop-tier')
+
+        // r=9 → circumference ≈ 56.549
+        const C = 2 * Math.PI * 9
+
+        function tierFor(p) {
+          if (p < 20)  return { id: 't1', label: 'Plenty of room' }
+          if (p < 60)  return { id: 't2', label: 'Healthy' }
+          if (p < 78)  return { id: 't3', label: 'Watch' }
+          if (p < 93)  return { id: 't4', label: 'Pruning soon' }
+          return { id: 't5', label: 'Auto-compact' }
+        }
+
+        function fmt(n) { return n.toLocaleString('en-US') }
+
+        function setPercent(p, totalTokens) {
+          p = Math.max(0, Math.min(100, p))
+          const total = totalTokens ?? 200000
+          const used = Math.round((p / 100) * total)
+          const t = tierFor(p)
+
+          disk.dataset.tier = t.id
+          if (popTier) popTier.textContent = t.label
+          if (pctEl) pctEl.textContent = Math.round(p) + '%'
+          if (fill) fill.setAttribute('stroke-dashoffset', String(C * (1 - p / 100)))
+          if (popUsed) popUsed.textContent = fmt(used)
+          if (popTotal) popTotal.textContent = fmt(total)
+          if (popBar) popBar.style.width = p + '%'
+        }
+
+        // Expose for demos / future wiring; init at 62%
+        window.setContextPercent = setPercent
+        setPercent(62, 200000)
+      })()
 
       // ============================================================
       //   INSPECTOR TOGGLE + DRAG RESIZE

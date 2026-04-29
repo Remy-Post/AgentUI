@@ -4,7 +4,7 @@
   "description": "Express + Mongoose backend that hosts the Claude Agent SDK and streams events over SSE",
   "main": "dist/src/server.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx --watch src/server.ts",
     "cli": "tsx watch src/main.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.server.json",

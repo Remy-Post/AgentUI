@@ -13,6 +13,8 @@ const DEV_PORT = Number(process.env.AGENT_SERVER_PORT ?? 3001)
 
 export async function startServerProcess(envOverrides: Record<string, string | undefined>): Promise<number> {
   if (is.dev) {
+    // electron-vite dev/preview are un-packaged, so root scripts own the
+    // Express process and the main process only hands the renderer its port.
     cachedPort = DEV_PORT
     return DEV_PORT
   }

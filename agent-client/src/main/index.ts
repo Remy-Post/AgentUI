@@ -81,7 +81,7 @@ app.whenReady().then(async () => {
       ANTHROPIC_API_KEY: stored.ANTHROPIC_API_KEY,
       MONGODB_URI: process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/agent-desk',
     })
-    applyCSP(serverPort)
+    if (!is.dev) applyCSP(serverPort)
   } catch (error) {
     console.error('[main] server failed to start:', error)
     // Still open the window so the SettingsPanel can collect the API key.

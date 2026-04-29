@@ -1,19 +1,24 @@
 import { useQuery } from '@tanstack/react-query'
 import { getServerOrigin } from '../lib/api'
+import type { HealthDTO } from '@shared/types'
 
-export type ServerStatus = 'connected' | 'disconnected' | 'checking'
+export type ServerStatus = 'connected' | 'server-unreachable' | 'db-down' | 'sdk-not-ready' | 'checking'
 
 export function useServerStatus(): ServerStatus {
   const query = useQuery({
     queryKey: ['server-health'],
-    queryFn: async (): Promise<'connected' | 'disconnected'> => {
+    queryFn: async (): Promise<Exclude<ServerStatus, 'checking'>> => {
       const origin = await getServerOrigin()
-      if (!origin) return 'disconnected'
+      if (!origin) return 'server-unreachable'
       try {
         const res = await fetch(`${origin}/health`)
-        return res.ok ? 'connected' : 'disconnected'
+        if (!res.ok) return 'server-unreachable'
+        const health = (await res.json()) as HealthDTO
+        if (health.db !== 'up') return 'db-down'
+        if (health.sdk !== 'ready') return 'sdk-not-ready'
+        return 'connected'
       } catch {
-        return 'disconnected'
+        return 'server-unreachable'
       }
     },
     refetchInterval: 8000,
@@ -22,5 +27,5 @@ export function useServerStatus(): ServerStatus {
   })
 
   if (query.isPending) return 'checking'
-  return query.data ?? 'disconnected'
+  return query.data ?? 'server-unreachable'
 }
