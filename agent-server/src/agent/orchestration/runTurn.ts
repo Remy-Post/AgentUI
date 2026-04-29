@@ -11,7 +11,11 @@ import type { SSEHandle } from '../sse.ts'
 import type { RuntimeConversation } from './options.ts'
 import { buildQueryOptions } from './options.ts'
 import { extractAssistantText, extractSessionId, normalizeSdkMessage } from './events.ts'
-import { buildTurnUsageBulkOps, type TurnUsageEntry } from './turnUsage.ts'
+import {
+  buildContextWindowBulkOps,
+  buildTurnUsageBulkOps,
+  type TurnUsageEntry,
+} from './turnUsage.ts'
 
 export type RunConversationTurnInput = {
   conversationId: string
@@ -78,7 +82,7 @@ async function persistAssistantMessage(
 
   if (!isTopLevel) return {}
   const tokens = nz(usage?.input_tokens) + nz(usage?.output_tokens)
-  return { entry: { id: created._id, tokens } }
+  return { entry: { id: created._id, tokens, model } }
 }
 
 export async function runConversationTurn({
@@ -120,11 +124,14 @@ export async function runConversationTurn({
           if (message.type === 'result') {
             const result = message as SDKResultMessage
             const cost = result.total_cost_usd
-            if (typeof cost === 'number' && Number.isFinite(cost)) {
-              totalCostUsd = cost
-              const ops = buildTurnUsageBulkOps(turnEntries, cost)
-              if (ops.length > 0) await Message.bulkWrite(ops, { ordered: false })
-            }
+            const costOps =
+              typeof cost === 'number' && Number.isFinite(cost)
+                ? buildTurnUsageBulkOps(turnEntries, cost)
+                : []
+            if (typeof cost === 'number' && Number.isFinite(cost)) totalCostUsd = cost
+            const contextOps = buildContextWindowBulkOps(turnEntries, result.modelUsage)
+            const allOps = [...costOps, ...contextOps]
+            if (allOps.length > 0) await Message.bulkWrite(allOps, { ordered: false })
             const usage = result.usage
             if (usage) {
               totalInputTokens = nz(usage.input_tokens)

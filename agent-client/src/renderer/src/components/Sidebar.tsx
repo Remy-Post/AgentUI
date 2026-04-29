@@ -128,7 +128,7 @@ export default function Sidebar({
 }: Props): React.JSX.Element {
   const version = useAppVersion()
   const { data: settings } = useSettings()
-  const fallbackFoot = settings?.defaultModel ?? 'claude-sonnet-4'
+  const fallbackFoot = settings?.defaultModelId ?? 'claude-sonnet-4-6'
   const footText = footLabel ?? fallbackFoot
 
   const showRecentList = mode === 'chat' || mode === 'settings-default'

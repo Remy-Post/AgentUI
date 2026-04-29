@@ -2,10 +2,12 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { AgentDefinition, PermissionMode } from '@anthropic-ai/claude-agent-sdk'
 import type { GoogleWorkspaceService } from '../../mcp/gwsTypes.ts'
+import type { DbToolId } from '../../mcp/dbTypes.ts'
 import type { RuntimeToolPolicy } from './toolPolicy.ts'
 import {
   AGENT_TOOL_NAME,
   expandToolNames,
+  filterEnabledDbToolIds,
   filterEnabledSdkTools,
   filterEnabledWorkspaceServices,
 } from './toolPolicy.ts'
@@ -70,6 +72,14 @@ function asEffort(value: string | undefined): AgentDefinition['effort'] | undefi
   return undefined
 }
 
+function mapConversationEffort(
+  value: 'low' | 'medium' | 'high' | undefined,
+): AgentDefinition['effort'] {
+  if (value === 'low') return 'low'
+  if (value === 'high') return 'max'
+  return 'high'
+}
+
 function unique(values: Iterable<string>): string[] {
   const out: string[] = []
   const seen = new Set<string>()
@@ -82,21 +92,47 @@ function unique(values: Iterable<string>): string[] {
 }
 
 function gwsServerScriptPath(): string {
+  return mcpServerScriptPath('gwsServer')
+}
+
+function dbServerScriptPath(): string {
+  return mcpServerScriptPath('dbServer')
+}
+
+function mcpServerScriptPath(name: string): string {
   const thisFile = fileURLToPath(import.meta.url)
   const extension = thisFile.endsWith('.ts') ? 'ts' : 'js'
-  return resolve(dirname(thisFile), '..', '..', 'mcp', `gwsServer.${extension}`)
+  return resolve(dirname(thisFile), '..', '..', 'mcp', `${name}.${extension}`)
+}
+
+function mcpServerArgs(scriptPath: string): string[] {
+  if (scriptPath.endsWith('.ts')) return ['--import', 'tsx', scriptPath]
+  return [scriptPath]
 }
 
 function gwsServerArgs(): string[] {
-  const scriptPath = gwsServerScriptPath()
-  if (scriptPath.endsWith('.ts')) return ['--import', 'tsx', scriptPath]
-  return [scriptPath]
+  return mcpServerArgs(gwsServerScriptPath())
+}
+
+function dbServerArgs(): string[] {
+  return mcpServerArgs(dbServerScriptPath())
 }
 
 function envValue(name: string): string | undefined {
   const value = process.env[name]
   return typeof value === 'string' && value.length > 0 ? value : undefined
 }
+
+const MCP_BASE_ENV_NAMES = [
+  'SystemRoot',
+  'WINDIR',
+  'HOME',
+  'USERPROFILE',
+  'APPDATA',
+  'LOCALAPPDATA',
+  'TEMP',
+  'TMP',
+]
 
 function pathEnvName(): 'PATH' | 'Path' {
   return process.platform === 'win32' ? 'Path' : 'PATH'
@@ -113,17 +149,27 @@ function withNodeBinPaths(pathValue: string | undefined): string {
   return unique([...nodeBinPaths, ...current.split(delimiter).filter(Boolean)]).join(delimiter)
 }
 
-function buildGwsMcpEnv(services: GoogleWorkspaceService[]): Record<string, string> {
+function buildBaseMcpEnv(): Record<string, string> {
   const env: Record<string, string> = {}
+
+  for (const name of MCP_BASE_ENV_NAMES) {
+    const value = envValue(name)
+    if (value) env[name] = value
+  }
+
+  const pathName = pathEnvName()
+  env[pathName] = withNodeBinPaths(process.env[pathName] ?? process.env.PATH)
+  if (process.platform === 'win32') {
+    const pathext = envValue('PATHEXT')
+    if (pathext) env.PATHEXT = pathext
+  }
+
+  return env
+}
+
+function buildGwsMcpEnv(services: GoogleWorkspaceService[]): Record<string, string> {
+  const env = buildBaseMcpEnv()
   const copyEnvNames = [
-    'SystemRoot',
-    'WINDIR',
-    'HOME',
-    'USERPROFILE',
-    'APPDATA',
-    'LOCALAPPDATA',
-    'TEMP',
-    'TMP',
     'GOOGLE_WORKSPACE_CLI_CONFIG_DIR',
     'GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE',
     'GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND',
@@ -138,15 +184,15 @@ function buildGwsMcpEnv(services: GoogleWorkspaceService[]): Record<string, stri
   const binaryPath = envValue('GWS_BINARY_PATH')
   if (binaryPath) env.GWS_BINARY_PATH = binaryPath
 
-  const pathName = pathEnvName()
-  env[pathName] = withNodeBinPaths(process.env[pathName] ?? process.env.PATH)
-  if (process.platform === 'win32') {
-    const pathext = envValue('PATHEXT')
-    if (pathext) env.PATHEXT = pathext
-  }
-
   env.GWS_ALLOWED_SERVICES = services.join(',')
   return env
+}
+
+function buildDbMcpEnv(toolIds: DbToolId[]): Record<string, string> {
+  return {
+    ...buildBaseMcpEnv(),
+    AGENTUI_DB_ALLOWED_TOOLS: toolIds.join(','),
+  }
 }
 
 function gwsMcpServerName(services: GoogleWorkspaceService[]): string {
@@ -174,13 +220,37 @@ function buildGwsMcpServers(services: GoogleWorkspaceService[]): {
   }
 }
 
+function buildDbMcpServers(toolIds: DbToolId[]): {
+  mcpServers?: NonNullable<AgentDefinition['mcpServers']>
+  allowedTools: string[]
+} {
+  if (toolIds.length === 0) return { allowedTools: [] }
+  return {
+    mcpServers: [
+      {
+        agentui_db: {
+          type: 'stdio',
+          command: process.execPath,
+          args: dbServerArgs(),
+          env: buildDbMcpEnv(toolIds),
+        },
+      },
+    ],
+    allowedTools: ['mcp__agentui_db__*'],
+  }
+}
+
 function buildSubagentDefinition(
   source: RuntimeSubagentRecord,
   policy: RuntimeToolPolicy,
+  effortOverride?: AgentDefinition['effort'],
 ): AgentDefinition {
   const tools = filterEnabledSdkTools(source.tools ?? [], policy)
   const mcpServices = filterEnabledWorkspaceServices(source.mcpServices, policy)
+  const dbToolIds = filterEnabledDbToolIds(source.tools, policy)
   const mcp = buildGwsMcpServers(mcpServices)
+  const dbMcp = buildDbMcpServers(dbToolIds)
+  const mcpServers = [...(mcp.mcpServers ?? []), ...(dbMcp.mcpServers ?? [])]
   const disallowedTools = [
     ...policy.disallowedTools,
     ...expandToolNames(source.disallowedTools),
@@ -191,23 +261,26 @@ function buildSubagentDefinition(
     description: source.description,
     prompt: source.prompt,
     model: source.model,
-    effort: asEffort(source.effort),
+    effort: effortOverride ?? asEffort(source.effort),
     permissionMode: asPermissionMode(source.permissionMode),
-    tools: unique([...tools, ...mcp.allowedTools]),
+    tools: unique([...tools, ...mcp.allowedTools, ...dbMcp.allowedTools]),
     disallowedTools,
-    mcpServers: mcp.mcpServers,
+    mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
   }
 }
 
 export function buildAgentDefinitions(
   policy: RuntimeToolPolicy,
   mongoSubagents: RuntimeSubagentRecord[],
+  conversationEffort?: 'low' | 'medium' | 'high',
 ): Record<string, AgentDefinition> {
+  const effort = mapConversationEffort(conversationEffort)
   const agents: Record<string, AgentDefinition> = {
     [ORCHESTRATOR_AGENT_NAME]: {
       description: 'Minimal parent orchestrator that delegates tool-heavy work to scoped subagents.',
       prompt: ORCHESTRATOR_PROMPT,
       permissionMode: 'dontAsk',
+      effort,
       tools: [AGENT_TOOL_NAME],
       disallowedTools: policy.availableTools.filter((tool) => tool !== AGENT_TOOL_NAME),
     },
@@ -223,7 +296,7 @@ export function buildAgentDefinitions(
       suffix += 1
     }
     used.add(key)
-    agents[key] = buildSubagentDefinition(source, policy)
+    agents[key] = buildSubagentDefinition(source, policy, effort)
   }
 
   return agents

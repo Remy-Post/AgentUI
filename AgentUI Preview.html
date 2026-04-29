@@ -621,7 +621,103 @@
       .list-row .desc { font-size: 12px; color: var(--color-muted-2); margin-top: 2px; line-height: 1.45; }
       .list-row .meta { display: flex; gap: 8px; align-items: center; }
 
-      .row-actions { display: flex; gap: 6px; align-items: center; }
+      .row-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+      /* Tool registry category dropdowns */
+      .quick-tools {
+        margin-bottom: 16px;
+      }
+      .quick-tools-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+      .quick-tools-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .quick-tool-row {
+        border: 1px solid var(--color-line);
+        border-radius: 10px;
+        background: var(--color-paper);
+      }
+      .toggle.disabled { cursor: not-allowed; opacity: 0.58; }
+      .tool-groups {
+        display: grid;
+        gap: 10px;
+      }
+      .tool-group {
+        background: var(--color-paper);
+        border: 1px solid var(--color-line);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .tool-group-summary {
+        display: grid;
+        grid-template-columns: 28px minmax(0, 1fr) auto 16px;
+        gap: 12px;
+        align-items: center;
+        padding: 12px 14px;
+        cursor: pointer;
+        list-style: none;
+        transition: background .12s;
+      }
+      .tool-group-summary::-webkit-details-marker { display: none; }
+      .tool-group-summary:hover { background: rgba(229, 224, 210, 0.6); }
+      .tool-group-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+        background: var(--color-paper-2);
+        border: 1px solid var(--color-line);
+        display: grid;
+        place-items: center;
+        color: var(--color-ink-2);
+      }
+      .tool-group-copy {
+        min-width: 0;
+        display: grid;
+        gap: 2px;
+      }
+      .tool-group-title-row {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        min-width: 0;
+      }
+      .tool-group-title {
+        font-size: 13.5px;
+        font-weight: 600;
+        color: var(--color-ink);
+      }
+      .tool-group-desc {
+        font-size: 12px;
+        line-height: 1.4;
+        color: var(--color-muted-2);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .tool-group-count {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--color-muted-2);
+        white-space: nowrap;
+      }
+      .tool-group-chevron {
+        color: var(--color-muted);
+        transition: transform .15s ease;
+      }
+      .tool-group:not([open]) .tool-group-chevron { transform: rotate(-90deg); }
+      .tool-rows {
+        border-top: 1px solid var(--color-line);
+      }
+      .tool-rows .list-row {
+        background: var(--color-paper);
+      }
 
       /* Finance */
       .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
@@ -1477,7 +1573,8 @@
                 <button class="btn-secondary" id="tools-deny-all">Deny all</button>
               </div>
             </div>
-            <div class="list-card" id="tools-list"></div>
+            <div class="quick-tools" id="tools-quick"></div>
+            <div class="tool-groups" id="tools-list"></div>
           </div>
 
         </div>
@@ -1528,16 +1625,62 @@
       // ============================================================
       //   STATE
       // ============================================================
+      function tool(id, label, category, enabled, order, extra = {}) {
+        return { id, label, category, enabled, order, desc: extra.desc || label, quickRank: extra.quickRank, locked: extra.locked, kind: extra.kind || 'sdk', permission: extra.permission }
+      }
       const TOOLS = [
-        { id: 'read_file', desc: 'Read a project file as UTF-8.', enabled: true },
-        { id: 'edit_file', desc: 'Apply a diff to a file in the workspace.', enabled: true },
-        { id: 'grep', desc: 'Regex search across the project tree.', enabled: true },
-        { id: 'list_files', desc: 'List directory contents.', enabled: true },
-        { id: 'shell.exec', desc: 'Execute a shell command in the sandboxed runner.', enabled: true },
-        { id: 'web.fetch', desc: 'Fetch a URL and return text.', enabled: true },
-        { id: 'web.search', desc: 'Search the web and return snippets.', enabled: true },
-        { id: 'git.commit', desc: 'Stage and commit a set of files.', enabled: true },
-        { id: 'sqlite.query', desc: 'Run a read-only query on the local cache DB.', enabled: true },
+        tool('Agent', 'Agent', 'orchestration', true, 10, { locked: true, desc: 'Spawn scoped subagents with their own context windows.', permission: 'Required by AgentUI orchestration.' }),
+        tool('AskUserQuestion', 'Ask user question', 'orchestration', false, 20),
+        tool('Read', 'Read files', 'computer', true, 100, { quickRank: 2, desc: 'Read file contents from the workspace.' }),
+        tool('Glob', 'Find files', 'computer', true, 110),
+        tool('Grep', 'Search files', 'computer', true, 120),
+        tool('Edit', 'Edit files', 'computer', true, 130),
+        tool('MultiEdit', 'Multi-edit files', 'computer', true, 140),
+        tool('Write', 'Write files', 'computer', true, 150),
+        tool('Bash', 'Bash', 'computer', false, 160, { quickRank: 1, desc: 'Execute shell commands in the workspace.' }),
+        tool('PowerShell', 'PowerShell', 'computer', false, 170),
+        tool('Monitor', 'Monitor', 'computer', false, 180),
+        tool('LSP', 'LSP', 'computer', false, 190),
+        tool('WebFetch', 'Web fetch', 'web', true, 300),
+        tool('WebSearch', 'Web search', 'web', true, 310, { quickRank: 3 }),
+        tool('EnterPlanMode', 'Enter plan mode', 'planning', false, 400),
+        tool('ExitPlanMode', 'Exit plan mode', 'planning', false, 410),
+        tool('EnterWorktree', 'Enter worktree', 'worktrees', false, 500),
+        tool('ExitWorktree', 'Exit worktree', 'worktrees', false, 510),
+        tool('NotebookEdit', 'Notebook edit', 'notebooks', false, 600),
+        tool('CronCreate', 'Schedule task', 'schedules', false, 700),
+        tool('CronList', 'List schedules', 'schedules', false, 710),
+        tool('CronDelete', 'Delete schedule', 'schedules', false, 720),
+        tool('TodoWrite', 'Todo write', 'tasks', true, 800),
+        tool('TaskCreate', 'Create task', 'tasks', false, 810),
+        tool('TaskGet', 'Get task', 'tasks', false, 820),
+        tool('TaskList', 'List tasks', 'tasks', false, 830),
+        tool('TaskUpdate', 'Update task', 'tasks', false, 840),
+        tool('TaskOutput', 'Task output', 'tasks', false, 850),
+        tool('TaskStop', 'Stop task', 'tasks', false, 860),
+        tool('TeamCreate', 'Create team', 'tasks', false, 870),
+        tool('SendMessage', 'Send teammate message', 'tasks', false, 880),
+        tool('TeamDelete', 'Delete team', 'tasks', false, 890),
+        tool('ListMcpResourcesTool', 'List MCP resources', 'mcp', false, 900),
+        tool('ReadMcpResourceTool', 'Read MCP resource', 'mcp', false, 910),
+        tool('ToolSearch', 'Tool search', 'mcp', false, 920),
+        tool('Skill', 'Skill', 'mcp', true, 930),
+        tool('google.workspace.drive', 'Google Drive', 'google-suite', false, 1000, { kind: 'mcp' }),
+        tool('google.workspace.gmail', 'Gmail', 'google-suite', false, 1010, { kind: 'mcp' }),
+        tool('google.workspace.calendar', 'Google Calendar', 'google-suite', false, 1020, { kind: 'mcp' }),
+        tool('google.workspace.sheets', 'Google Sheets', 'google-suite', false, 1030, { kind: 'mcp' }),
+        tool('google.workspace.docs', 'Google Docs', 'google-suite', false, 1040, { kind: 'mcp' }),
+        tool('google.workspace.tasks', 'Google Tasks', 'google-suite', false, 1050, { kind: 'mcp' }),
+        tool('mongodb.read', 'MongoDB read', 'database', false, 1100, { kind: 'mcp' }),
+        tool('mongodb.create', 'MongoDB create', 'database', false, 1110, { kind: 'mcp' }),
+        tool('mongodb.update', 'MongoDB update', 'database', false, 1120, { kind: 'mcp' }),
+        tool('mongodb.delete', 'MongoDB delete', 'database', false, 1130, { kind: 'mcp' }),
+        tool('mysql.read', 'MySQL read', 'database', false, 1140, { kind: 'mcp' }),
+        tool('mysql.create', 'MySQL create', 'database', false, 1150, { kind: 'mcp' }),
+        tool('mysql.update', 'MySQL update', 'database', false, 1160, { kind: 'mcp' }),
+        tool('mysql.delete', 'MySQL delete', 'database', false, 1170, { kind: 'mcp' }),
+        tool('git.commit', 'Git commit', 'source-control', false, 1200, { kind: 'compatibility' }),
+        tool('sqlite.query', 'SQLite query', 'database', false, 1210, { kind: 'compatibility' }),
       ]
 
       const SKILLS = [
@@ -1560,35 +1703,131 @@
       // ============================================================
       //   TOOLS PANE (functional)
       // ============================================================
+      const TOOL_CATEGORIES = [
+        { id: 'orchestration', label: 'Orchestration', desc: 'Subagents, clarification, and orchestration controls.', open: true, icon: '<path d="M4 5h6v6H4zM14 13h6v6h-6zM14 5h6M4 17h6M10 8h4M10 17h4"/>' },
+        { id: 'computer', label: 'Computer', desc: 'Workspace files, code search, edits, shell, and local code intelligence.', open: true, icon: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>' },
+        { id: 'web', label: 'Web', desc: 'Remote search and HTTP fetch tools.', open: true, icon: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 0 20M12 2a15.3 15.3 0 0 0 0 20"/>' },
+        { id: 'database', label: 'Database', desc: 'Local MongoDB, MySQL, and structured data tools.', open: true, icon: '<ellipse cx="12" cy="5" rx="7" ry="3"/><path d="M5 5v14c0 1.7 3.1 3 7 3s7-1.3 7-3V5"/><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/>' },
+        { id: 'google-suite', label: 'Google Suite', desc: 'Drive, Gmail, Calendar, Sheets, Docs, and Tasks connectors.', open: true, icon: '<path d="M17.5 19H7a5 5 0 1 1 1.3-9.8A6.5 6.5 0 0 1 20 12.5 3.5 3.5 0 0 1 17.5 19z"/>' },
+        { id: 'planning', label: 'Planning', desc: 'Plan-mode controls exposed by Claude Code.', open: false, icon: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>' },
+        { id: 'worktrees', label: 'Worktrees', desc: 'Isolated git worktree session controls.', open: false, icon: '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6M8.5 8.5 15.5 15.5"/>' },
+        { id: 'notebooks', label: 'Notebooks', desc: 'Jupyter notebook editing tools.', open: false, icon: '<path d="M4 19.5V4a2 2 0 0 1 2-2h10l4 4v13.5A2.5 2.5 0 0 1 17.5 22H6.5A2.5 2.5 0 0 1 4 19.5z"/>' },
+        { id: 'schedules', label: 'Schedules', desc: 'Session-scoped scheduled prompt controls.', open: false, icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' },
+        { id: 'tasks', label: 'Tasks', desc: 'Task checklist, background task, and agent-team controls.', open: false, icon: '<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/>' },
+        { id: 'mcp', label: 'MCP and Skills', desc: 'MCP resources, deferred tool search, and enabled skills.', open: false, icon: '<path d="M12 3v18M5 8h14M5 16h14"/>' },
+        { id: 'source-control', label: 'Source Control', desc: 'Git workflow compatibility toggles.', open: false, icon: '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.5 8.5 15.5 15.5"/>' },
+        { id: 'other', label: 'Other', desc: 'Additional tools returned by the backend registry.', open: false, icon: '<path d="M14.7 6.3a4 4 0 1 1-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 1 5.4-5.4z"/>' },
+      ]
+
+      function categoryForTool(tool) {
+        return tool.category || 'other'
+      }
+
+      function sortTools(a, b) {
+        const aOrder = a.order ?? Number.MAX_SAFE_INTEGER
+        const bOrder = b.order ?? Number.MAX_SAFE_INTEGER
+        if (aOrder !== bOrder) return aOrder - bOrder
+        return a.id.localeCompare(b.id)
+      }
+
+      function groupSummary(allowed, total) {
+        return total ? `${allowed}/${total} allowed` : '0 tools'
+      }
+
+      function toolCount(total) {
+        return total === 1 ? '1 tool' : `${total} tools`
+      }
+
       function renderTools() {
         const root = document.getElementById('tools-list')
+        const quick = document.getElementById('tools-quick')
         if (!root) return
-        root.innerHTML = TOOLS.map((t, i) => `
-          <div class="list-row" data-tool-row="${t.id}">
+        const openState = new Map(
+          Array.from(root.querySelectorAll('details[data-tool-group]')).map((details) => [
+            details.dataset.toolGroup,
+            details.open,
+          ])
+        )
+        const groups = TOOL_CATEGORIES.map((category) => {
+          const tools = TOOLS.filter((tool) => categoryForTool(tool) === category.id).sort(sortTools)
+          return {
+            ...category,
+            tools,
+            allowed: tools.filter((tool) => tool.enabled).length,
+          }
+        }).filter((group) => group.tools.length > 0)
+
+        if (quick) {
+          const quickTools = TOOLS.filter((tool) => typeof tool.quickRank === 'number')
+            .sort((a, b) => a.quickRank - b.quickRank)
+          quick.innerHTML = `
+            <div class="quick-tools-head">
+              <div>
+                <div class="cap">Quick access</div>
+                <div class="pane-sub">Pinned controls for common turns.</div>
+              </div>
+            </div>
+            <div class="quick-tools-grid">
+              ${quickTools.map((t) => toolRowHTML(t, true)).join('')}
+            </div>
+          `
+        }
+
+        root.innerHTML = groups.map((group) => {
+          const open = openState.has(group.id) ? openState.get(group.id) : group.open
+          return `
+          <details class="tool-group" data-tool-group="${group.id}" ${open ? 'open' : ''}>
+            <summary class="tool-group-summary">
+              <span class="tool-group-icon">
+                <svg class="ic-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${group.icon}</svg>
+              </span>
+              <span class="tool-group-copy">
+                <span class="tool-group-title-row">
+                  <span class="tool-group-title">${escapeHtml(group.label)}</span>
+                  <span class="chrome">${toolCount(group.tools.length)}</span>
+                </span>
+                <span class="tool-group-desc">${escapeHtml(group.desc)}</span>
+              </span>
+              <span class="tool-group-count">${groupSummary(group.allowed, group.tools.length)}</span>
+              <svg class="tool-group-chevron ic-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </summary>
+            <div class="tool-rows">
+              ${group.tools.map((t) => toolRowHTML(t)).join('')}
+            </div>
+          </details>
+        `}).join('')
+
+        document.querySelectorAll('input[data-tool]').forEach((cb) => {
+          cb.addEventListener('change', (e) => {
+            const t = TOOLS.find((x) => x.id === e.target.dataset.tool)
+            if (t) t.enabled = e.target.checked
+            renderTools()
+          })
+        })
+        updateToolsSummary()
+      }
+
+      function toolRowHTML(t, quick = false) {
+        return `
+          <div class="list-row compact ${quick ? 'quick-tool-row' : ''}" data-tool-row="${escapeHtml(t.id)}">
             <span class="glyph">
               <svg class="ic-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M14.7 6.3a4 4 0 1 1-5.4 5.4L3 18v3h3l6.3-6.3a4 4 0 0 1 5.4-5.4z"/>
               </svg>
             </span>
             <div>
-              <div class="name mono">${t.id}</div>
-              <div class="desc">${t.desc}</div>
+              <div class="name">${escapeHtml(t.label || t.id)}</div>
+              <div class="desc"><span class="mono">${escapeHtml(t.id)}</span>${t.desc ? ' - ' + escapeHtml(t.desc) : ''}</div>
+              ${t.permission ? `<div class="desc">${escapeHtml(t.permission)}</div>` : ''}
             </div>
-            <label class="toggle">
-              <input type="checkbox" ${t.enabled ? 'checked' : ''} data-tool="${t.id}" />
+            <label class="toggle ${t.locked ? 'disabled' : ''}">
+              <input type="checkbox" ${t.enabled ? 'checked' : ''} ${t.locked ? 'disabled' : ''} data-tool="${escapeHtml(t.id)}" />
               <span class="slider"></span>
             </label>
           </div>
-        `).join('')
-
-        root.querySelectorAll('input[data-tool]').forEach((cb) => {
-          cb.addEventListener('change', (e) => {
-            const t = TOOLS.find((x) => x.id === e.target.dataset.tool)
-            if (t) t.enabled = e.target.checked
-            updateToolsSummary()
-          })
-        })
-        updateToolsSummary()
+        `
       }
 
       function updateToolsSummary() {
@@ -1601,10 +1840,10 @@
       }
 
       document.getElementById('tools-allow-all')?.addEventListener('click', () => {
-        TOOLS.forEach((t) => (t.enabled = true)); renderTools()
+        TOOLS.forEach((t) => { if (!t.locked) t.enabled = true }); renderTools()
       })
       document.getElementById('tools-deny-all')?.addEventListener('click', () => {
-        TOOLS.forEach((t) => (t.enabled = false)); renderTools()
+        TOOLS.forEach((t) => { if (!t.locked) t.enabled = false }); renderTools()
       })
 
       // ============================================================

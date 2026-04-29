@@ -11,6 +11,7 @@ const MessageSchema = new mongoose.Schema(
     cacheCreationInputTokens: { type: Number },
     cacheReadInputTokens: { type: Number },
     model: { type: String },
+    contextWindow: { type: Number },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 )

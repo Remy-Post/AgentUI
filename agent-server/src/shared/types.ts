@@ -29,6 +29,22 @@ export type MessageDTO = {
   cacheCreationInputTokens?: number
   cacheReadInputTokens?: number
   model?: string
+  contextWindow?: number
+}
+
+export type ContextBreakdown = {
+  systemTokens: number
+  toolTokens: number
+  messageTokens: number
+  fileTokens: number
+}
+
+export type ContextDTO = {
+  usedTokens: number
+  totalTokens: number
+  model: string
+  breakdown: ContextBreakdown
+  recordedAt: string | null
 }
 
 export type SkillDTO = {
@@ -54,14 +70,29 @@ export type SubagentDTO = {
   enabled: boolean
 }
 
+export type ModelClass = 'opus' | 'sonnet' | 'haiku'
+
 export type SettingsDTO = {
-  defaultModel: 'claude-sonnet-4' | 'claude-opus-4' | 'claude-haiku-4-5'
+  defaultModel: ModelClass
+  /** Resolved latest model ID for the chosen class (e.g. "claude-opus-4-7"). */
+  defaultModelId: string
+  /** Send the context-1m-2025-08-07 beta on Sonnet 4 family turns. */
+  useOneMillionContext: boolean
+  /** Enable Claude Code fast mode on Opus family turns. */
+  useFastMode: boolean
 }
 
 export type ToolDTO = {
   id: string
+  label?: string
   description: string
   enabled: boolean
+  category?: string
+  kind?: 'sdk' | 'mcp' | 'compatibility'
+  order?: number
+  quickRank?: number
+  locked?: boolean
+  permission?: string
 }
 
 export type HealthDTO = {
@@ -78,6 +109,8 @@ export type UpdateConversationRequest = Partial<{
 
 export type UpdateSettingsRequest = Partial<{
   defaultModel: SettingsDTO['defaultModel']
+  useOneMillionContext: boolean
+  useFastMode: boolean
 }>
 
 export type UpdateToolRequest = Partial<{

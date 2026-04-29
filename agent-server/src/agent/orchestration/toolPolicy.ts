@@ -4,6 +4,7 @@ import {
   googleWorkspaceServiceFromToolId,
   isGoogleWorkspaceToolId,
 } from '../../mcp/gwsTypes.ts'
+import { DB_MCP_TOOL_TO_TOGGLE, type DbToolId, isDbToolId } from '../../mcp/dbTypes.ts'
 
 export type ToolRecord = {
   id: string
@@ -17,11 +18,48 @@ export type RuntimeToolPolicy = {
   enabledToolIds: Set<string>
   enabledSdkTools: Set<string>
   enabledWorkspaceServices: Set<GoogleWorkspaceService>
+  enabledDbToolIds: Set<DbToolId>
 }
 
 const AGENT_TOOL = 'Agent'
 
 export const UI_TOOL_TO_SDK_TOOLS: Record<string, string[]> = {
+  Agent: ['Agent'],
+  AskUserQuestion: ['AskUserQuestion'],
+  Bash: ['Bash'],
+  CronCreate: ['CronCreate'],
+  CronDelete: ['CronDelete'],
+  CronList: ['CronList'],
+  Edit: ['Edit'],
+  EnterPlanMode: ['EnterPlanMode'],
+  EnterWorktree: ['EnterWorktree'],
+  ExitPlanMode: ['ExitPlanMode'],
+  ExitWorktree: ['ExitWorktree'],
+  Glob: ['Glob'],
+  Grep: ['Grep'],
+  ListMcpResourcesTool: ['ListMcpResourcesTool'],
+  LSP: ['LSP'],
+  Monitor: ['Monitor'],
+  MultiEdit: ['MultiEdit'],
+  NotebookEdit: ['NotebookEdit'],
+  PowerShell: ['PowerShell'],
+  Read: ['Read'],
+  ReadMcpResourceTool: ['ReadMcpResourceTool'],
+  SendMessage: ['SendMessage'],
+  Skill: ['Skill'],
+  TaskCreate: ['TaskCreate'],
+  TaskGet: ['TaskGet'],
+  TaskList: ['TaskList'],
+  TaskOutput: ['TaskOutput'],
+  TaskStop: ['TaskStop'],
+  TaskUpdate: ['TaskUpdate'],
+  TeamCreate: ['TeamCreate'],
+  TeamDelete: ['TeamDelete'],
+  TodoWrite: ['TodoWrite'],
+  ToolSearch: ['ToolSearch'],
+  WebFetch: ['WebFetch'],
+  WebSearch: ['WebSearch'],
+  Write: ['Write'],
   read_file: ['Read'],
   edit_file: ['Edit', 'Write', 'MultiEdit'],
   grep: ['Grep'],
@@ -34,6 +72,32 @@ export const UI_TOOL_TO_SDK_TOOLS: Record<string, string[]> = {
 }
 
 const KNOWN_SDK_TOOLS = [
+  'Agent',
+  'AskUserQuestion',
+  'CronCreate',
+  'CronDelete',
+  'CronList',
+  'EnterPlanMode',
+  'EnterWorktree',
+  'ExitPlanMode',
+  'ExitWorktree',
+  'ListMcpResourcesTool',
+  'LSP',
+  'Monitor',
+  'PowerShell',
+  'ReadMcpResourceTool',
+  'SendMessage',
+  'Skill',
+  'TaskCreate',
+  'TaskGet',
+  'TaskList',
+  'TaskOutput',
+  'TaskStop',
+  'TaskUpdate',
+  'TeamCreate',
+  'TeamDelete',
+  'TodoWrite',
+  'ToolSearch',
   'Read',
   'Edit',
   'Write',
@@ -77,6 +141,7 @@ export function expandToolNames(toolNames: Iterable<string> | undefined): string
   const expanded: string[] = []
   for (const name of toolNames) {
     if (isGoogleWorkspaceToolId(name)) continue
+    if (isDbToolId(name)) continue
     const mapped = UI_TOOL_TO_SDK_TOOLS[name]
     if (mapped) expanded.push(...mapped)
     else if (name) expanded.push(name)
@@ -87,11 +152,17 @@ export function expandToolNames(toolNames: Iterable<string> | undefined): string
 export function resolveToolPolicy(tools: ToolRecord[]): RuntimeToolPolicy {
   const enabledToolIds = new Set(tools.filter((tool) => tool.enabled).map((tool) => tool.id))
   const enabledSdkTools = new Set(expandToolNames(enabledToolIds))
+  enabledSdkTools.add(AGENT_TOOL)
   const enabledWorkspaceServices = new Set(
     tools
       .filter((tool) => tool.enabled)
       .map((tool) => googleWorkspaceServiceFromToolId(tool.id))
       .filter((service): service is GoogleWorkspaceService => service !== null),
+  )
+  const enabledDbToolIds = new Set(
+    tools
+      .filter((tool) => tool.enabled && isDbToolId(tool.id))
+      .map((tool) => tool.id as DbToolId),
   )
   const disabledSdkTools = new Set(
     tools.flatMap((tool) => (tool.enabled ? [] : expandToolNames([tool.id]))),
@@ -100,7 +171,7 @@ export function resolveToolPolicy(tools: ToolRecord[]): RuntimeToolPolicy {
   const availableTools = unique([AGENT_TOOL, ...enabledSdkTools])
   const allowedTools = unique(availableTools)
   const disallowedTools = unique(
-    KNOWN_SDK_TOOLS.filter((tool) => !enabledSdkTools.has(tool) || disabledSdkTools.has(tool)),
+    KNOWN_SDK_TOOLS.filter((tool) => tool !== AGENT_TOOL && (!enabledSdkTools.has(tool) || disabledSdkTools.has(tool))),
   )
 
   return {
@@ -110,6 +181,7 @@ export function resolveToolPolicy(tools: ToolRecord[]): RuntimeToolPolicy {
     enabledToolIds,
     enabledSdkTools,
     enabledWorkspaceServices,
+    enabledDbToolIds,
   }
 }
 
@@ -133,6 +205,20 @@ export function filterEnabledWorkspaceServices(
   return out
 }
 
+export function filterEnabledDbToolIds(
+  toolIds: Iterable<string> | undefined,
+  policy: RuntimeToolPolicy,
+): DbToolId[] {
+  const out: DbToolId[] = []
+  const seen = new Set<DbToolId>()
+  for (const toolId of toolIds ?? []) {
+    if (!isDbToolId(toolId) || !policy.enabledDbToolIds.has(toolId) || seen.has(toolId)) continue
+    seen.add(toolId)
+    out.push(toolId)
+  }
+  return out
+}
+
 export function isSensitiveToolPath(input: Record<string, unknown>): boolean {
   const paths = [
     input.file_path,
@@ -151,12 +237,18 @@ export function isForbiddenBashInput(input: Record<string, unknown>): boolean {
 }
 
 function googleWorkspaceServiceFromMcpTool(toolName: string): GoogleWorkspaceService | null {
-  const match = /^mcp__agentui_gws_[A-Za-z0-9_]+__gws_(drive|gmail|calendar|sheets|docs)_call$/.exec(toolName)
+  const match = /^mcp__agentui_gws_[A-Za-z0-9_]+__gws_(drive|gmail|calendar|sheets|docs|tasks)_call$/.exec(toolName)
   return match?.[1] as GoogleWorkspaceService | null
 }
 
 function isGoogleWorkspaceSchemaMcpTool(toolName: string): boolean {
   return /^mcp__agentui_gws_[A-Za-z0-9_]+__gws_schema$/.test(toolName)
+}
+
+function dbToolIdFromMcpTool(toolName: string): DbToolId | null {
+  const match = /^mcp__agentui_db__([A-Za-z0-9_]+)$/.exec(toolName)
+  if (!match) return null
+  return DB_MCP_TOOL_TO_TOGGLE[match[1]] ?? null
 }
 
 function allow(toolUseID?: string): PermissionResult {
@@ -194,6 +286,13 @@ export function makeToolPermissionPolicy(policy: RuntimeToolPolicy): CanUseTool 
         : deny('Google Workspace access is disabled.', options.toolUseID)
     }
 
+    const dbToolId = dbToolIdFromMcpTool(toolName)
+    if (dbToolId) {
+      return policy.enabledDbToolIds.has(dbToolId)
+        ? allow(options.toolUseID)
+        : deny(`Database tool ${dbToolId} is disabled.`, options.toolUseID)
+    }
+
     if (!policy.enabledSdkTools.has(toolName)) {
       return deny(`Tool ${toolName} is disabled by the AgentUI tool policy.`, options.toolUseID)
     }
@@ -203,15 +302,10 @@ export function makeToolPermissionPolicy(policy: RuntimeToolPolicy): CanUseTool 
     }
 
     if (WRITE_TOOLS.has(toolName)) {
-      return policy.enabledToolIds.has('edit_file')
-        ? allow(options.toolUseID)
-        : deny('File editing tools are disabled.', options.toolUseID)
+      return allow(options.toolUseID)
     }
 
     if (toolName === 'Bash') {
-      if (!policy.enabledToolIds.has('shell.exec')) {
-        return deny('Shell execution is disabled.', options.toolUseID)
-      }
       if (isForbiddenBashInput(input)) {
         return deny('This shell command is blocked by the global safety policy.', options.toolUseID)
       }

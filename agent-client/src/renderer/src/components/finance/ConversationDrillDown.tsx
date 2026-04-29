@@ -16,13 +16,29 @@ type PerTurnRow = {
   turn: number
   inputTokens?: number
   outputTokens?: number
+  cacheCreationInputTokens?: number
+  cacheReadInputTokens?: number
   model?: string
   costUsd?: number
 }
 
+// Tokens shown per row are the full billable input volume (new + cache
+// creation + cache read) plus output. Anthropic bills on this combined
+// figure, so a row with only input_tokens=7 but heavy cache reads still
+// surfaces a representative number.
 function rowTokens(row: PerTurnRow): number | null {
-  if (typeof row.inputTokens !== 'number' && typeof row.outputTokens !== 'number') return null
-  return (row.inputTokens ?? 0) + (row.outputTokens ?? 0)
+  const hasAny =
+    typeof row.inputTokens === 'number' ||
+    typeof row.outputTokens === 'number' ||
+    typeof row.cacheCreationInputTokens === 'number' ||
+    typeof row.cacheReadInputTokens === 'number'
+  if (!hasAny) return null
+  return (
+    (row.inputTokens ?? 0) +
+    (row.outputTokens ?? 0) +
+    (row.cacheCreationInputTokens ?? 0) +
+    (row.cacheReadInputTokens ?? 0)
+  )
 }
 
 export default function ConversationDrillDown({
@@ -46,6 +62,8 @@ export default function ConversationDrillDown({
         turn: i + 1,
         inputTokens: m.inputTokens,
         outputTokens: m.outputTokens,
+        cacheCreationInputTokens: m.cacheCreationInputTokens,
+        cacheReadInputTokens: m.cacheReadInputTokens,
         model: m.model,
         costUsd: m.costUsd
       })),
@@ -57,7 +75,10 @@ export default function ConversationDrillDown({
     return typeof t === 'number' ? acc + t : acc
   }, 0)
   const conversationTokenTotal =
-    (conversation?.totalInputTokens ?? 0) + (conversation?.totalOutputTokens ?? 0)
+    (conversation?.totalInputTokens ?? 0) +
+    (conversation?.totalOutputTokens ?? 0) +
+    (conversation?.totalCacheCreationInputTokens ?? 0) +
+    (conversation?.totalCacheReadInputTokens ?? 0)
   const includesSubagent = conversationTokenTotal > visibleTokenSum
   const totalTokens = conversationTokenTotal > 0 ? conversationTokenTotal : visibleTokenSum
   const avgCost = perTurnRows.length > 0 ? totalCost / perTurnRows.length : 0

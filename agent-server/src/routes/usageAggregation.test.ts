@@ -65,6 +65,29 @@ test('lastHour pipeline uses last 60 minutes regardless of window', () => {
   assert.equal(createdAt.$gte.getTime(), FIXED_NOW.getTime() - 60 * 60 * 1000)
 })
 
+test('inTokens rolls up new + cache-creation + cache-read input tokens', () => {
+  const { totals, byModel } = buildUsageAggregationPipelines('30d', FIXED_NOW)
+  for (const pipe of [totals, byModel]) {
+    const group = findStage(pipe, '$group')?.$group as Record<string, unknown>
+    const inSum = group.inTokens as { $sum: { $add: Array<{ $ifNull: [string, number] }> } }
+    const fields = inSum.$sum.$add.map((expr) => expr.$ifNull[0]).sort()
+    assert.deepEqual(fields, ['$cacheCreationInputTokens', '$cacheReadInputTokens', '$inputTokens'])
+  }
+})
+
+test('recentRuns tokens field rolls up all four input categories plus output', () => {
+  const { recentRuns } = buildUsageAggregationPipelines('30d', FIXED_NOW)
+  const project = findStage(recentRuns, '$project')?.$project as Record<string, unknown>
+  const tokensExpr = project.tokens as { $add: Array<{ $ifNull: [string, number] }> }
+  const fields = tokensExpr.$add.map((expr) => expr.$ifNull[0]).sort()
+  assert.deepEqual(fields, [
+    '$cacheCreationInputTokens',
+    '$cacheReadInputTokens',
+    '$inputTokens',
+    '$outputTokens',
+  ])
+})
+
 test('byModel pipeline filters out missing or non-string model and groups on $model', () => {
   const { byModel } = buildUsageAggregationPipelines('30d', FIXED_NOW)
   const match = findStage(byModel, '$match')?.$match as Record<string, unknown>

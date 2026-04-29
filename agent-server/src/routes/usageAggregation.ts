@@ -79,12 +79,26 @@ function bucketGroupStage(unit: SparkUnit, binSize: number): Record<string, unkn
   }
 }
 
+// inTokens rolls up new + cache-creation + cache-read input tokens to match
+// what the Anthropic console reports as input. Storing the three counters
+// separately on Message preserves fidelity with the SDK; we sum them here
+// because users want a single "input tokens" number on the UI.
+function totalInputExpr(): Record<string, unknown> {
+  return {
+    $add: [
+      { $ifNull: ['$inputTokens', 0] },
+      { $ifNull: ['$cacheCreationInputTokens', 0] },
+      { $ifNull: ['$cacheReadInputTokens', 0] },
+    ],
+  }
+}
+
 function totalsGroupStage(): Record<string, unknown> {
   return {
     $group: {
       _id: null,
       spendUsd: { $sum: { $ifNull: ['$costUsd', 0] } },
-      inTokens: { $sum: { $ifNull: ['$inputTokens', 0] } },
+      inTokens: { $sum: totalInputExpr() },
       outTokens: { $sum: { $ifNull: ['$outputTokens', 0] } },
     },
   }
@@ -127,7 +141,7 @@ export function buildUsageAggregationPipelines(
     {
       $group: {
         _id: '$model',
-        inTokens: { $sum: { $ifNull: ['$inputTokens', 0] } },
+        inTokens: { $sum: totalInputExpr() },
         outTokens: { $sum: { $ifNull: ['$outputTokens', 0] } },
         spendUsd: { $sum: { $ifNull: ['$costUsd', 0] } },
       },
@@ -165,6 +179,8 @@ export function buildUsageAggregationPipelines(
         tokens: {
           $add: [
             { $ifNull: ['$inputTokens', 0] },
+            { $ifNull: ['$cacheCreationInputTokens', 0] },
+            { $ifNull: ['$cacheReadInputTokens', 0] },
             { $ifNull: ['$outputTokens', 0] },
           ],
         },

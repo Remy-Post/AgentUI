@@ -80,6 +80,7 @@ export default function ChatView({
                 streaming.end()
                 queryClient.invalidateQueries({ queryKey: ['messages', conversationId] })
                 queryClient.invalidateQueries({ queryKey: ['conversations'] })
+                queryClient.invalidateQueries({ queryKey: ['context', conversationId] })
                 break
               case 'error':
                 streaming.fail((data as { message?: string }).message ?? 'stream_error')
@@ -111,6 +112,7 @@ export default function ChatView({
         modelLabel={conversation.model}
       />
       <Composer
+        conversationId={conversationId}
         disabled={streaming.active && streaming.conversationId === conversationId}
         onSubmit={handleSubmit}
       />

@@ -7,17 +7,22 @@ type Props = {
   messageTokens?: number
   toolTokens?: number
   fileTokens?: number
+  model?: string
+  hasData?: boolean
 }
 
 export default function ContextDisk({
-  usedTokens = 124000,
+  usedTokens = 0,
   totalTokens = 200000,
-  systemTokens = 8420,
-  messageTokens = 86300,
-  toolTokens = 12100,
-  fileTokens = 17180
+  systemTokens = 0,
+  messageTokens = 0,
+  toolTokens = 0,
+  fileTokens = 0,
+  model,
+  hasData = false
 }: Props): React.JSX.Element {
-  const p = Math.max(0, Math.min(100, (usedTokens / totalTokens) * 100))
+  const safeTotal = totalTokens > 0 ? totalTokens : 200000
+  const p = Math.max(0, Math.min(100, (usedTokens / safeTotal) * 100))
   const C = 2 * Math.PI * 9
 
   let tierId = 't1'
@@ -36,11 +41,16 @@ export default function ContextDisk({
     tierLabel = 'Auto-compact'
   }
 
-  const fmt = (n: number) => n.toLocaleString('en-US')
+  if (!hasData) {
+    tierId = 't1'
+    tierLabel = 'Idle'
+  }
+
+  const fmt = (n: number): string => n.toLocaleString('en-US')
 
   return (
     <div className="ctx-disk" data-tier={tierId} tabIndex={0} aria-label="Context window usage">
-      <span className="ctx-pct">{Math.round(p)}%</span>
+      <span className="ctx-pct">{hasData ? `${Math.round(p)}%` : '--'}</span>
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle className="ctx-track" cx="12" cy="12" r="9" fill="none" strokeWidth="2.5" />
         <circle
@@ -62,10 +72,15 @@ export default function ContextDisk({
           <span className="pop-title">Context window</span>
           <span className="pop-tier">{tierLabel}</span>
         </div>
+        {model && (
+          <div className="chrome mono" style={{ fontSize: 11, marginBottom: 6 }}>
+            {model}
+          </div>
+        )}
         <div className="pop-total">
           <span>{fmt(usedTokens)}</span>
           <span className="pop-of">
-            / <span>{fmt(totalTokens)}</span> tokens
+            / <span>{fmt(safeTotal)}</span> tokens
           </span>
         </div>
         <div className="pop-bar">
@@ -105,8 +120,14 @@ export default function ContextDisk({
           <span className="val">{fmt(fileTokens)}</span>
         </div>
         <div className="pop-foot">
-          <strong>$0.62</strong> spent so far &middot; <strong>14</strong> messages in window
-          &middot; auto-compacts at <strong>93%</strong>
+          {hasData ? (
+            <>
+              <strong>{fmt(safeTotal - usedTokens)}</strong> tokens left &middot; auto-compacts at{' '}
+              <strong>93%</strong>
+            </>
+          ) : (
+            <>Send a message to populate the breakdown.</>
+          )}
         </div>
       </div>
     </div>

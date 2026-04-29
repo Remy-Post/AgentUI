@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, CornerDownLeft } from 'lucide-react'
 import ContextDisk from './ContextDisk'
+import { useContextWindow } from '../hooks/useContextWindow'
 
 type Props = {
+  conversationId: string | null
   disabled: boolean
   onSubmit: (content: string) => void
 }
 
-export default function Composer({ disabled, onSubmit }: Props): React.JSX.Element {
+export default function Composer({
+  conversationId,
+  disabled,
+  onSubmit
+}: Props): React.JSX.Element {
+  const contextQuery = useContextWindow(conversationId)
   const [value, setValue] = useState('')
   const ref = useRef<HTMLTextAreaElement>(null)
 
@@ -53,7 +60,16 @@ export default function Composer({ disabled, onSubmit }: Props): React.JSX.Eleme
             <span className="chrome mono">{value.length} chars</span>
           </div>
           <div className="composer-actions">
-            <ContextDisk />
+            <ContextDisk
+              usedTokens={contextQuery.data?.usedTokens}
+              totalTokens={contextQuery.data?.totalTokens}
+              systemTokens={contextQuery.data?.breakdown.systemTokens}
+              messageTokens={contextQuery.data?.breakdown.messageTokens}
+              toolTokens={contextQuery.data?.breakdown.toolTokens}
+              fileTokens={contextQuery.data?.breakdown.fileTokens}
+              model={contextQuery.data?.model}
+              hasData={!!contextQuery.data && contextQuery.data.usedTokens > 0}
+            />
             <button
               type="button"
               className="send-btn"

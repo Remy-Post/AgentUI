@@ -1,6 +1,7 @@
 import { useViewStore, type SettingsTab } from '../../store/view'
 import ApiKeyTab from './ApiKeyTab'
 import ModelTab from './ModelTab'
+import BudgetTab from './BudgetTab'
 import SubagentsTab from './SubagentsTab'
 import SkillsTab from './SkillsTab'
 import ToolsTab from './ToolsTab'
@@ -8,6 +9,7 @@ import ConversationsTab from './ConversationsTab'
 
 const LEFT_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'model', label: 'Model' },
+  { id: 'budget', label: 'Budget' },
   { id: 'skills', label: 'Skills' },
   { id: 'subagents', label: 'Subagents' }
 ]
@@ -60,6 +62,7 @@ export default function SettingsView({ onSelectConversation }: Props): React.JSX
       <div className="settings-body">
         {settingsTab === 'api' && <ApiKeyTab />}
         {settingsTab === 'model' && <ModelTab />}
+        {settingsTab === 'budget' && <BudgetTab />}
         {settingsTab === 'subagents' && <SubagentsTab />}
         {settingsTab === 'skills' && <SkillsTab />}
         {settingsTab === 'tools' && <ToolsTab />}

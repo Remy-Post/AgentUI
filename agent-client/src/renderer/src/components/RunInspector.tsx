@@ -45,9 +45,19 @@ export default function RunInspector({
     [messages]
   )
 
+  // "in tokens" rolls up new + cache-creation + cache-read input tokens to
+  // match what the Anthropic console reports as input. With prompt caching,
+  // most input ends up in the cache fields after the first turn.
   const inputTokens = useMemo(
     () =>
-      messages.reduce((acc, m) => acc + (typeof m.inputTokens === 'number' ? m.inputTokens : 0), 0),
+      messages.reduce((acc, m) => {
+        const fresh = typeof m.inputTokens === 'number' ? m.inputTokens : 0
+        const cacheCreate =
+          typeof m.cacheCreationInputTokens === 'number' ? m.cacheCreationInputTokens : 0
+        const cacheRead =
+          typeof m.cacheReadInputTokens === 'number' ? m.cacheReadInputTokens : 0
+        return acc + fresh + cacheCreate + cacheRead
+      }, 0),
     [messages]
   )
 

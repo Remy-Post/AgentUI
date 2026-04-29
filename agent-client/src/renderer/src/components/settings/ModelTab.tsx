@@ -1,33 +1,41 @@
-import { Cpu, Zap, Feather } from 'lucide-react'
+import { Brain, Sparkles, Zap, type LucideIcon } from 'lucide-react'
 import { useSettings } from '../../hooks/useSettings'
-import type { SettingsDTO } from '@shared/types'
+import type { ModelClass } from '@shared/types'
 
-type Model = SettingsDTO['defaultModel']
+// Mirrors the server's MODELS map in agent-server/util/vars.ts. Renderer can't
+// import runtime values from agent-server, so the latest IDs are duplicated
+// here for display only — the server still resolves the actual model used.
+const LATEST_MODEL_ID: Record<ModelClass, string> = {
+  opus: 'claude-opus-4-7',
+  sonnet: 'claude-sonnet-4-6',
+  haiku: 'claude-haiku-4-5-20251001'
+}
 
-const OPTIONS: Array<{ id: Model; name: string; description: string; icon: typeof Cpu }> = [
+const OPTIONS: Array<{
+  id: ModelClass
+  name: string
+  icon: LucideIcon
+}> = [
   {
-    id: 'claude-sonnet-4',
-    name: 'claude-sonnet-4',
-    description: 'Balanced default. Great for most chat and coding work.',
+    id: 'opus',
+    name: 'Opus',
+    icon: Brain
+  },
+  {
+    id: 'sonnet',
+    name: 'Sonnet',
+    icon: Sparkles
+  },
+  {
+    id: 'haiku',
+    name: 'Haiku',
     icon: Zap
-  },
-  {
-    id: 'claude-opus-4',
-    name: 'claude-opus-4',
-    description: 'Deep reasoning, long horizons. Use for hard, multi-step tasks.',
-    icon: Cpu
-  },
-  {
-    id: 'claude-haiku-4-5',
-    name: 'claude-haiku-4-5',
-    description: 'Fast and cheap. Best for quick lookups and short replies.',
-    icon: Feather
   }
 ]
 
 export default function ModelTab(): React.JSX.Element {
   const { data, update } = useSettings()
-  const current = data?.defaultModel ?? 'claude-sonnet-4'
+  const current: ModelClass = data?.defaultModel ?? 'sonnet'
 
   return (
     <div className="settings-pane">
@@ -35,8 +43,8 @@ export default function ModelTab(): React.JSX.Element {
         <div className="pane-head-text">
           <div className="pane-title">Default model</div>
           <div className="pane-sub">
-            Used when starting a new conversation. Existing conversations keep the model they were
-            created with.
+            Used when starting a new conversation. Picks the latest release in the chosen class.
+            Existing conversations keep the model they were created with.
           </div>
         </div>
       </div>
@@ -45,14 +53,17 @@ export default function ModelTab(): React.JSX.Element {
         {OPTIONS.map((opt) => {
           const Icon = opt.icon
           const checked = current === opt.id
+          const modelId =
+            checked && data?.defaultModelId ? data.defaultModelId : LATEST_MODEL_ID[opt.id]
           return (
             <label key={opt.id} className="list-row selectable" style={{ cursor: 'pointer' }}>
               <div className="glyph">
                 <Icon size={14} />
               </div>
               <div>
-                <div className="name">{opt.name}</div>
-                <div className="desc">{opt.description}</div>
+                <div className="name">
+                  {opt.name} <span className="chrome mono">· {modelId}</span>
+                </div>
               </div>
               <input
                 type="radio"

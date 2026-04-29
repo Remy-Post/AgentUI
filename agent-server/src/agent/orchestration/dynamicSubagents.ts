@@ -4,13 +4,14 @@ import {
   type GoogleWorkspaceService,
   uniqueGoogleWorkspaceServices,
 } from '../../mcp/gwsTypes.ts'
+import { type DbEngine, type DbOperation, type DbToolId, dbToolId, uniqueDbToolIds } from '../../mcp/dbTypes.ts'
 import { writeSubagentFile } from '../scaffold.ts'
 import type { RuntimeConversation } from './options.ts'
 import type { RuntimeToolPolicy } from './toolPolicy.ts'
-import { AGENT_TOOL_NAME, expandToolNames, filterEnabledSdkTools } from './toolPolicy.ts'
+import { AGENT_TOOL_NAME, expandToolNames, filterEnabledDbToolIds, filterEnabledSdkTools } from './toolPolicy.ts'
 import type { RuntimeSubagentRecord } from './agents.ts'
 
-type TaskKind = 'research' | 'code' | 'test' | 'web' | 'automation' | 'workspace'
+type TaskKind = 'research' | 'code' | 'test' | 'web' | 'automation' | 'workspace' | 'database'
 
 export type DynamicSubagentTask = {
   kind: TaskKind
@@ -50,6 +51,7 @@ const KIND_MARKERS: Record<TaskKind, string[]> = {
   web: ['web', 'http', 'url', 'fetch', 'latest', 'internet', 'search online'],
   automation: ['shell', 'command', 'script', 'mongo', 'mongodb', 'database', 'sqlite', 'automation'],
   workspace: ['google workspace', 'gmail', 'google drive', 'google calendar', 'google sheets', 'google docs', 'google tasks'],
+  database: ['mongo', 'mongodb', 'mysql', 'database', 'collection', 'table', 'crud'],
 }
 
 const WORKSPACE_SERVICE_MARKERS: Record<GoogleWorkspaceService, RegExp[]> = {
@@ -94,6 +96,23 @@ const WORKSPACE_ACTION_MARKERS = [
   /\b(?:google\s+workspace|gmail|google\s+drive|google\s+calendar|google\s+docs?|google\s+sheets?|google\s+tasks?|todo)\b/i,
 ]
 
+const DB_ENGINE_MARKERS: Record<DbEngine, RegExp[]> = {
+  mongodb: [/\bmongo(?:db)?\b/i, /\bcollection(?:s)?\b/i],
+  mysql: [/\bmysql\b/i, /\bsql\s+table(?:s)?\b/i, /\btable(?:s)?\b/i],
+}
+
+const DB_OPERATION_MARKERS: Record<DbOperation, RegExp[]> = {
+  read: [/\b(?:read|find|list|show|select|query|search|get|inspect|schema)\b/i],
+  create: [/\b(?:create|insert|add)\b/i],
+  update: [/\b(?:update|modify|patch|change)\b/i],
+  delete: [/\b(?:delete|remove|drop)\b/i],
+}
+
+const DB_ACTION_MARKERS = [
+  /\b(?:crud|database|mongo(?:db)?|mysql|collection(?:s)?|table(?:s)?)\b/i,
+  /\b(?:read|find|list|show|select|query|insert|create|update|delete|remove)\b/i,
+]
+
 function unique<T extends string>(values: Iterable<T>): T[] {
   const out: T[] = []
   const seen = new Set<T>()
@@ -126,6 +145,10 @@ function hasWorkspaceIntent(value: string): boolean {
   return WORKSPACE_ACTION_MARKERS.some((marker) => marker.test(value))
 }
 
+function hasDatabaseIntent(value: string): boolean {
+  return DB_ACTION_MARKERS.some((marker) => marker.test(value))
+}
+
 function detectWorkspaceServices(segment: string, policy: RuntimeToolPolicy): GoogleWorkspaceService[] {
   if (!hasWorkspaceIntent(segment)) return []
   const services: GoogleWorkspaceService[] = []
@@ -134,6 +157,23 @@ function detectWorkspaceServices(segment: string, policy: RuntimeToolPolicy): Go
     if (WORKSPACE_SERVICE_MARKERS[service].some((marker) => marker.test(segment))) services.push(service)
   }
   return uniqueGoogleWorkspaceServices(services)
+}
+
+function detectDatabaseToolIds(segment: string, policy: RuntimeToolPolicy): DbToolId[] {
+  if (!hasDatabaseIntent(segment)) return []
+  const engines = (Object.keys(DB_ENGINE_MARKERS) as DbEngine[])
+    .filter((engine) => DB_ENGINE_MARKERS[engine].some((marker) => marker.test(segment)))
+  if (engines.length === 0) return []
+
+  const operations = (Object.keys(DB_OPERATION_MARKERS) as DbOperation[])
+    .filter((operation) => DB_OPERATION_MARKERS[operation].some((marker) => marker.test(segment)))
+  if (/\bcrud\b/i.test(segment)) operations.push('read', 'create', 'update', 'delete')
+  if (operations.length === 0) operations.push('read')
+
+  return uniqueDbToolIds(
+    engines.flatMap((engine) => operations.map((operation) => dbToolId(engine, operation)))
+      .filter((toolId) => policy.enabledDbToolIds.has(toolId)),
+  )
 }
 
 function stripBullet(value: string): string {
@@ -167,6 +207,7 @@ function splitTaskSegments(content: string): string[] {
 function classifyKinds(segment: string): TaskKind[] {
   const kinds: TaskKind[] = []
   if (containsAny(segment, KIND_MARKERS.web)) kinds.push('web')
+  if (containsAny(segment, KIND_MARKERS.database)) kinds.push('database')
   if (containsAny(segment, KIND_MARKERS.code)) kinds.push('code')
   if (containsAny(segment, KIND_MARKERS.test)) kinds.push('test')
   if (containsAny(segment, KIND_MARKERS.automation)) kinds.push('automation')
@@ -176,6 +217,8 @@ function classifyKinds(segment: string): TaskKind[] {
 
 function requiredTools(kind: TaskKind, purpose: string): string[] {
   switch (kind) {
+    case 'database':
+      return []
     case 'code':
       return /\b(?:new file|create|scaffold|add)\b/i.test(purpose)
         ? ['Read', 'Grep', 'Glob', 'Edit', 'MultiEdit', 'Write']
@@ -215,6 +258,7 @@ function taskDescription(kind: TaskKind, purpose: string, service?: GoogleWorksp
   if (kind === 'workspace' && service) {
     return `Scoped ${serviceLabel(service)} subagent for: ${purpose.slice(0, 140)}`
   }
+  if (kind === 'database') return `Scoped database subagent for: ${purpose.slice(0, 140)}`
   return `Scoped ${kind} subagent for: ${purpose.slice(0, 140)}`
 }
 
@@ -248,6 +292,12 @@ function taskEffort(kind: TaskKind): string {
   return kind === 'test' ? 'low' : 'medium'
 }
 
+function planCap(effort: 'low' | 'medium' | 'high' | undefined): number {
+  if (effort === 'low') return 3
+  if (effort === 'high') return Number.POSITIVE_INFINITY
+  return 7
+}
+
 function buildWorkspaceTask(
   service: GoogleWorkspaceService,
   purpose: string,
@@ -276,7 +326,7 @@ function buildWorkspaceTask(
 }
 
 function buildTask(kind: TaskKind, purpose: string, policy: RuntimeToolPolicy, conversation: RuntimeConversation): DynamicSubagentTask | null {
-  if (kind === 'workspace') return null
+  if (kind === 'workspace' || kind === 'database') return null
   const tools = filterEnabledSdkTools(requiredTools(kind, purpose), policy)
   if (tools.length === 0) return null
 
@@ -297,6 +347,32 @@ function buildTask(kind: TaskKind, purpose: string, policy: RuntimeToolPolicy, c
     effort: taskEffort(kind),
     name,
     prompt: taskPrompt(kind, purpose, tools),
+  }
+}
+
+function buildDatabaseTask(
+  purpose: string,
+  toolIds: DbToolId[],
+  policy: RuntimeToolPolicy,
+  conversation: RuntimeConversation,
+): DynamicSubagentTask | null {
+  const tools = filterEnabledDbToolIds(toolIds, policy)
+  if (tools.length === 0) return null
+
+  const disallowedTools = unique([...Array.from(policy.enabledSdkTools), AGENT_TOOL_NAME])
+  const slug = slugify(purpose)
+  const name = `agentui_database_${slug}`.slice(0, 80)
+
+  return {
+    kind: 'database',
+    purpose,
+    description: taskDescription('database', purpose),
+    tools,
+    disallowedTools,
+    model: conversation.model,
+    effort: 'medium',
+    name,
+    prompt: taskPrompt('database', purpose, tools),
   }
 }
 
@@ -322,6 +398,19 @@ export function planDynamicSubagentTasks(
       continue
     }
 
+    const dbToolIds = detectDatabaseToolIds(segment, policy)
+    if (dbToolIds.length > 0) {
+      const task = buildDatabaseTask(segment, dbToolIds, policy, conversation)
+      if (task) {
+        const key = `${task.kind}:${task.tools.join(',')}:${slugify(task.purpose)}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          tasks.push(task)
+        }
+      }
+      continue
+    }
+
     for (const kind of classifyKinds(segment)) {
       const task = buildTask(kind, segment, policy, conversation)
       if (!task) continue
@@ -332,7 +421,7 @@ export function planDynamicSubagentTasks(
     }
   }
 
-  return tasks.slice(0, 6)
+  return tasks.slice(0, planCap(conversation.effort))
 }
 
 function tokenOverlapScore(left: string, right: string): number {
@@ -348,6 +437,11 @@ function tokenOverlapScore(left: string, right: string): number {
 
 function hasRequiredTools(candidate: RuntimeSubagentRecord, task: DynamicSubagentTask): boolean {
   if (task.tools.length === 0) return true
+  const taskDbTools = uniqueDbToolIds(task.tools)
+  if (taskDbTools.length > 0) {
+    const candidateDbTools = new Set(uniqueDbToolIds(candidate.tools))
+    return taskDbTools.every((tool) => candidateDbTools.has(tool))
+  }
   const candidateTools = new Set(expandToolNames(candidate.tools))
   if (candidateTools.size === 0) return false
   return task.tools.every((tool) => candidateTools.has(tool))

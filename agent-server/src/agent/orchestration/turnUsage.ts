@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 export type TurnUsageEntry = {
   id: mongoose.Types.ObjectId
   tokens: number
+  model?: string
 }
 
 export type TurnUsageBulkOp = {
@@ -10,6 +11,34 @@ export type TurnUsageBulkOp = {
     filter: { _id: mongoose.Types.ObjectId }
     update: { $set: { costUsd: number } }
   }
+}
+
+export type ContextWindowBulkOp = {
+  updateOne: {
+    filter: { _id: mongoose.Types.ObjectId }
+    update: { $set: { contextWindow: number } }
+  }
+}
+
+// Records the per-message context window size from result.modelUsage[model].
+// Distinct from cost ops so the cost helper stays single-purpose and its
+// existing tests remain valid. Skips entries with no model or unknown
+// contextWindow so legacy/edge cases don't drop garbage values.
+export function buildContextWindowBulkOps(
+  entries: TurnUsageEntry[],
+  modelUsage: Record<string, { contextWindow?: number }> | undefined,
+): ContextWindowBulkOp[] {
+  if (!modelUsage) return []
+  const ops: ContextWindowBulkOp[] = []
+  for (const entry of entries) {
+    if (!entry.model) continue
+    const cw = modelUsage[entry.model]?.contextWindow
+    if (typeof cw !== 'number' || cw <= 0 || !Number.isFinite(cw)) continue
+    ops.push({
+      updateOne: { filter: { _id: entry.id }, update: { $set: { contextWindow: cw } } },
+    })
+  }
+  return ops
 }
 
 // Distributes total_cost_usd across the turn's tracked top-level assistant

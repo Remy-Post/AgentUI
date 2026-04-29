@@ -1,6 +1,12 @@
 import type { Options } from '@anthropic-ai/claude-agent-sdk'
 import mongoose from 'mongoose'
 import { protectSensitiveFiles } from '../../../util/hooks.ts'
+import {
+  ONE_MILLION_CONTEXT_BETA,
+  modelSupportsFastMode,
+  modelSupportsOneMillionContext,
+} from '../../../util/vars.ts'
+import { Settings } from '../../db/models/Settings.ts'
 import { Skill } from '../../db/models/Skill.ts'
 import { Subagent } from '../../db/models/Subagent.ts'
 import { Tool } from '../../db/models/Tool.ts'
@@ -14,6 +20,7 @@ export type RuntimeConversation = {
   _id: unknown
   model: string
   sdkSessionId?: string
+  effort?: 'low' | 'medium' | 'high'
   attachedSkillIds?: string[]
   attachedSubagentIds?: string[]
 }
@@ -28,6 +35,8 @@ export type RuntimeConfig = {
   tools: ToolRecord[]
   subagents: RuntimeSubagentRecord[]
   skills: RuntimeSkillRecord[]
+  useOneMillionContext: boolean
+  useFastMode: boolean
 }
 
 function idString(value: unknown): string {
@@ -45,10 +54,14 @@ function filterAttached<T extends { _id?: unknown; name: string }>(records: T[],
 export async function loadRuntimeConfig(conversation: RuntimeConversation): Promise<RuntimeConfig> {
   await ensureToolRegistrySeeded()
 
-  const [tools, subagents, skills] = await Promise.all([
+  const [tools, subagents, skills, settingsDoc] = await Promise.all([
     Tool.find().lean(),
     Subagent.find({ enabled: true }).lean(),
     Skill.find({ enabled: true }).lean(),
+    Settings.findOne({ key: 'global' }).lean<{
+      useOneMillionContext?: boolean
+      useFastMode?: boolean
+    } | null>(),
   ])
 
   return {
@@ -82,6 +95,8 @@ export async function loadRuntimeConfig(conversation: RuntimeConversation): Prom
       })),
       conversation.attachedSkillIds,
     ),
+    useOneMillionContext: Boolean(settingsDoc?.useOneMillionContext),
+    useFastMode: Boolean(settingsDoc?.useFastMode),
   }
 }
 
@@ -91,17 +106,21 @@ export function buildQueryOptionsFromRuntime(
 ): Options {
   const policy = resolveToolPolicy(runtime.tools)
   const skillNames = runtime.skills.map((skill) => skill.name).filter(Boolean)
+  const oneMActive = runtime.useOneMillionContext && modelSupportsOneMillionContext(conversation.model)
+  const fastModeActive = runtime.useFastMode && modelSupportsFastMode(conversation.model)
 
   return {
     model: conversation.model,
     agent: ORCHESTRATOR_AGENT_NAME,
-    agents: buildAgentDefinitions(policy, runtime.subagents),
+    agents: buildAgentDefinitions(policy, runtime.subagents, conversation.effort),
     tools: policy.availableTools,
     allowedTools: policy.allowedTools,
     disallowedTools: policy.disallowedTools,
     canUseTool: makeToolPermissionPolicy(policy),
     permissionMode: 'dontAsk',
     settingSources: ['project'],
+    betas: oneMActive ? [ONE_MILLION_CONTEXT_BETA] : undefined,
+    settings: fastModeActive ? { fastMode: true } : undefined,
     hooks: {
       PreToolUse: [
         {

@@ -1,7 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import mongoose from 'mongoose'
-import { buildTurnUsageBulkOps, type TurnUsageEntry, type TurnUsageBulkOp } from './turnUsage.ts'
+import {
+  buildContextWindowBulkOps,
+  buildTurnUsageBulkOps,
+  type TurnUsageEntry,
+  type TurnUsageBulkOp,
+} from './turnUsage.ts'
 
 function makeId(): mongoose.Types.ObjectId {
   return new mongoose.Types.ObjectId()
@@ -98,6 +103,56 @@ test('update shape is { $set: { costUsd } } only', () => {
   assert.deepEqual(Object.keys(update), ['$set'])
   const set = update.$set as Record<string, unknown>
   assert.deepEqual(Object.keys(set), ['costUsd'])
+})
+
+test('contextWindow ops use modelUsage[model].contextWindow per entry', () => {
+  const a = makeId()
+  const b = makeId()
+  const ops = buildContextWindowBulkOps(
+    [
+      { id: a, tokens: 100, model: 'claude-opus-4-7' },
+      { id: b, tokens: 100, model: 'claude-haiku-4-5' },
+    ],
+    {
+      'claude-opus-4-7': { contextWindow: 200000 },
+      'claude-haiku-4-5': { contextWindow: 200000 },
+    },
+  )
+  assert.equal(ops.length, 2)
+  assert.equal(ops[0].updateOne.update.$set.contextWindow, 200000)
+  assert.equal(ops[1].updateOne.update.$set.contextWindow, 200000)
+})
+
+test('contextWindow ops skip entries with no model', () => {
+  const ops = buildContextWindowBulkOps(
+    [{ id: makeId(), tokens: 100 }],
+    { 'claude-opus-4-7': { contextWindow: 200000 } },
+  )
+  assert.deepEqual(ops, [])
+})
+
+test('contextWindow ops skip entries when modelUsage is missing the model key', () => {
+  const ops = buildContextWindowBulkOps(
+    [{ id: makeId(), tokens: 100, model: 'claude-opus-4-7' }],
+    { 'some-other-model': { contextWindow: 200000 } },
+  )
+  assert.deepEqual(ops, [])
+})
+
+test('contextWindow ops skip non-finite or non-positive values', () => {
+  const ops = buildContextWindowBulkOps(
+    [{ id: makeId(), tokens: 100, model: 'm' }],
+    { m: { contextWindow: 0 } },
+  )
+  assert.deepEqual(ops, [])
+})
+
+test('contextWindow ops return empty when modelUsage is undefined', () => {
+  const ops = buildContextWindowBulkOps(
+    [{ id: makeId(), tokens: 100, model: 'claude-opus-4-7' }],
+    undefined,
+  )
+  assert.deepEqual(ops, [])
 })
 
 test('negative tokens are clamped to zero in weighting', () => {

@@ -38,7 +38,6 @@ export default function ChatHeader({
           title={inspectorOpen ? 'Hide run inspector (⌘.)' : 'Show run inspector (⌘.)'}
         >
           <PanelRight />
-          <span>{inspectorOpen ? 'hide inspector' : 'show inspector'}</span>
         </button>
       </div>
     </header>
