@@ -19,6 +19,7 @@ const MAX_SESSIONS = Number(process.env.MAX_SESSIONS ?? 8)
 const IDLE_MS = Number(process.env.IDLE_MS ?? 30 * 60_000) // 30 minutes
 
 const cache = new Map<string, Entry>()
+const busyConversationIds = new Set<string>()
 let evictionTimer: NodeJS.Timeout | null = null
 
 function startEvictionTimer(): void {
@@ -102,6 +103,7 @@ function evictOldestIdle(): void {
 }
 
 export function dropSession(conversationId: string): void {
+  busyConversationIds.delete(conversationId)
   const entry = cache.get(conversationId)
   if (!entry) return
   cache.delete(conversationId)
@@ -109,10 +111,13 @@ export function dropSession(conversationId: string): void {
 }
 
 export function isStreaming(conversationId: string): boolean {
-  return cache.get(conversationId)?.busy === true
+  return busyConversationIds.has(conversationId) || cache.get(conversationId)?.busy === true
 }
 
 export function markBusy(conversationId: string, busy: boolean): void {
+  if (busy) busyConversationIds.add(conversationId)
+  else busyConversationIds.delete(conversationId)
+
   const entry = cache.get(conversationId)
   if (entry) {
     entry.busy = busy

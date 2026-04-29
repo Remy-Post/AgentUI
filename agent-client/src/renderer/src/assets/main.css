@@ -134,7 +134,9 @@
 .frame.side-collapsed .recent-cap,
 .frame.side-collapsed .conv-row .chrome,
 .frame.side-collapsed .conv-meta,
-.frame.side-collapsed .sidebar-foot .chrome:not(.status-dot) { display: none; }
+.frame.side-collapsed .sidebar-foot .chrome:not(.status-dot),
+.frame.side-collapsed .jump-tab .jump-label,
+.frame.side-collapsed .jump-tab .kbd { display: none; }
 .frame.side-collapsed .new-conv {
   margin: 0 10px 10px; padding: 8px;
   justify-content: center;
@@ -149,6 +151,17 @@
 .frame.side-collapsed .conv-item > div:last-child { display: none; }
 .frame.side-collapsed .conv-item .dot { width: 8px; height: 8px; margin: 0; }
 .frame.side-collapsed .sidebar-foot { justify-content: center; padding: 12px 0; }
+.frame.side-collapsed .jump-nav {
+  margin: auto 10px 10px;
+  padding: 4px;
+  flex-direction: column;
+}
+.frame.side-collapsed .jump-tab {
+  width: 34px;
+  height: 34px;
+  justify-content: center;
+  padding: 0;
+}
 
 .new-conv {
   margin: 0 12px 12px;
@@ -414,22 +427,22 @@
 .recap p { font-size: 12.5px; line-height: 1.55; color: var(--color-ink-3); margin: 8px 0 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .recap .who { font-family: var(--font-mono); color: var(--color-muted); margin-right: 6px; }
 
-/* ===== Floating jump nav ===== */
+/* ===== Sidebar jump nav ===== */
 .jump-nav {
-  position: fixed;
-  bottom: 20px; left: 50%; transform: translateX(-50%);
-  background: rgba(250, 248, 244, 0.62);
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
-  border: 1px solid rgba(214, 208, 194, 0.55);
+  margin: auto 12px 10px;
+  background: rgba(250, 248, 244, 0.72);
+  border: 1px solid var(--color-line);
   border-radius: 999px;
   padding: 4px;
-  display: flex; gap: 2px; z-index: 90;
-  box-shadow: 0 12px 32px -12px rgba(26, 25, 22, 0.22), 0 4px 10px -4px rgba(26, 25, 22, 0.12);
+  display: flex; gap: 2px;
+  width: calc(100% - 24px);
+  flex-shrink: 0;
 }
 .jump-tab {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 7px 14px; border-radius: 999px;
+  flex: 1 1 0;
+  min-width: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 7px 8px; border-radius: 999px;
   font-family: var(--font-mono); font-size: 11px;
   text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--color-muted-2);
@@ -438,6 +451,7 @@
 .jump-tab:hover { color: var(--color-ink); background: rgba(229, 224, 210, 0.5); }
 .jump-tab.active { background: var(--color-ink); color: var(--color-paper); }
 .jump-tab svg { width: 12px; height: 12px; }
+.jump-tab .jump-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jump-tab .kbd { font-size: 9px; opacity: 0.6; margin-left: 2px; }
 
 /* ===== Settings ===== */

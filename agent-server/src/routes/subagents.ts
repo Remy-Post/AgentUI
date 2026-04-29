@@ -40,7 +40,17 @@ router.put('/:id', async (req, res) => {
   return res.json(updated)
 })
 
-const SUBAGENT_PATCH_FIELDS = ['name', 'description', 'prompt', 'model', 'effort', 'permissionMode', 'tools', 'enabled'] as const
+const SUBAGENT_PATCH_FIELDS = [
+  'name',
+  'description',
+  'prompt',
+  'model',
+  'effort',
+  'permissionMode',
+  'tools',
+  'disallowedTools',
+  'enabled',
+] as const
 
 router.patch('/:id', async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'invalid_id' })

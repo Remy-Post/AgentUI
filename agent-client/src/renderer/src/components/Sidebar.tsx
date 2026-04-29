@@ -5,6 +5,7 @@ import { useAppVersion } from '../hooks/useAppVersion'
 import { useSettings } from '../hooks/useSettings'
 import { formatRelativeTime, formatUsd } from '../lib/format'
 import BrandMark from './BrandMark'
+import JumpNav from './JumpNav'
 import StatusDot from './StatusDot'
 import type { ConversationDTO } from '@shared/types'
 
@@ -156,6 +157,8 @@ export default function Sidebar({
         : showRecentList && onSelect && (
             <ChatSidebarBody selectedId={selectedId} onSelect={onSelect} />
           )}
+
+      <JumpNav />
 
       <div className="sidebar-foot">
         <span className="chrome">{footText}</span>

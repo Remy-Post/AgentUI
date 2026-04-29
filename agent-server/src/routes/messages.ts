@@ -2,8 +2,9 @@ import { Router } from 'express'
 import mongoose from 'mongoose'
 import { Conversation } from '../db/models/Conversation.ts'
 import { Message } from '../db/models/Message.ts'
-import { getOrCreateSession, isStreaming, markBusy, dropSession } from '../agent/session.ts'
+import { isStreaming, markBusy, dropSession } from '../agent/session.ts'
 import { openSSE } from '../agent/sse.ts'
+import { runConversationTurn } from '../agent/orchestration/runTurn.ts'
 import type { SendMessageRequest } from '../shared/types.ts'
 
 const router = Router({ mergeParams: true })
@@ -34,50 +35,14 @@ router.post<'/', { id: string }>('/', async (req, res) => {
   let finalCost: number | undefined
 
   try {
-    const entry = await getOrCreateSession(conversationId, conversation.model)
-    await entry.session.send(content)
-
-    for await (const message of entry.session.stream()) {
-      if (res.writableEnded) break
-      switch (message.type) {
-        case 'assistant': {
-          const text = (message.message?.content ?? [])
-            .filter((b: { type?: string }) => b?.type === 'text')
-            .map((b: { type?: string; text?: string }) => b.text ?? '')
-            .join('')
-          if (text) {
-            await Message.create({ conversationId, role: 'assistant', content: text })
-          }
-          sse.write('assistant', { text, raw: message })
-          break
-        }
-        case 'result': {
-          const totalCost = (message as { total_cost_usd?: number }).total_cost_usd
-          finalCost = totalCost
-          if (typeof totalCost === 'number') {
-            await Message.updateMany(
-              { conversationId, role: 'assistant', costUsd: { $exists: false } },
-              { $set: { costUsd: totalCost } },
-            )
-          }
-          sse.write('result', { status: 'done', total_cost_usd: totalCost })
-          break
-        }
-        case 'tool_use_summary': {
-          const summary = (message as { summary?: unknown }).summary
-          await Message.create({ conversationId, role: 'tool', content: { kind: 'summary', summary } })
-          sse.write('tool_use_summary', { summary })
-          break
-        }
-        case 'tool_progress': {
-          const toolName = (message as { tool_name?: string }).tool_name ?? 'unknown'
-          sse.write('tool_progress', { tool_name: toolName, raw: message })
-          break
-        }
-        default:
-          break
-      }
-    }
+    const result = await runConversationTurn({
+      conversationId,
+      content,
+      conversation,
+      sse,
+      isClosed: () => res.writableEnded,
+    })
+    finalCost = result.totalCostUsd
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     await Message.create({ conversationId, role: 'system', content: { kind: 'error', message } })

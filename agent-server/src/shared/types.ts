@@ -2,6 +2,7 @@ export type ConversationDTO = {
   _id: string
   title: string
   model: string
+  sdkSessionId?: string
   totalCostUsd?: number
   effort?: 'low' | 'medium' | 'high'
   attachedSkillIds?: string[]
@@ -39,6 +40,7 @@ export type SubagentDTO = {
   effort?: string
   permissionMode?: string
   tools?: string[]
+  disallowedTools?: string[]
   enabled: boolean
 }
 

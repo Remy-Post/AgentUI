@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import CommandPalette from './components/CommandPalette'
-import JumpNav from './components/JumpNav'
 import ChatLayout from './components/layouts/ChatLayout'
 import FinanceLayout from './components/layouts/FinanceLayout'
 import SettingsLayout from './components/layouts/SettingsLayout'
@@ -124,7 +123,6 @@ function App(): React.JSX.Element {
           onSelectConversation={selectConversation}
         />
       )}
-      <JumpNav />
       {paletteOpen ? (
         <CommandPalette
           query={paletteQuery}

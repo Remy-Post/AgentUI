@@ -25,6 +25,9 @@ function buildSubagentMarkdown(doc: SubagentDoc): string {
   if (doc.effort) front.effort = doc.effort
   if (doc.permissionMode) front.permissionMode = doc.permissionMode
   if (Array.isArray(doc.tools) && doc.tools.length > 0) front.tools = doc.tools.join(', ')
+  if (Array.isArray(doc.disallowedTools) && doc.disallowedTools.length > 0) {
+    front.disallowedTools = doc.disallowedTools.join(', ')
+  }
   return matter.stringify(doc.prompt ?? '', front)
 }
 

@@ -22,7 +22,7 @@ export default function JumpNav(): React.JSX.Element {
           aria-current={view === id}
         >
           <Icon />
-          {label}
+          <span className="jump-label">{label}</span>
           <span className="kbd">{key}</span>
         </button>
       ))}

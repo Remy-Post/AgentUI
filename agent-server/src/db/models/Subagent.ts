@@ -9,6 +9,7 @@ const SubagentSchema = new mongoose.Schema(
     effort: { type: String },
     permissionMode: { type: String },
     tools: { type: [String] },
+    disallowedTools: { type: [String] },
     enabled: { type: Boolean, default: true },
   },
   { timestamps: true },
