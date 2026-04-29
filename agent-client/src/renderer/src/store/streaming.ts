@@ -12,6 +12,7 @@ type StreamActions = {
   begin: (conversationId: string) => void
   appendAssistant: (text: string) => void
   pushToolEvent: (event: { tool_name: string }) => void
+  clearToolEvents: () => void
   end: () => void
   fail: (message: string) => void
   reset: () => void
@@ -32,6 +33,7 @@ export const useStreamingStore = create<StreamState & StreamActions>((set) => ({
   appendAssistant: (text) => set((s) => ({ buffer: s.buffer + text })),
   pushToolEvent: ({ tool_name }) =>
     set((s) => ({ toolEvents: [...s.toolEvents, { tool_name, ts: Date.now() }] })),
+  clearToolEvents: () => set({ toolEvents: [] }),
   end: () => set({ active: false }),
   fail: (message) => set({ active: false, error: message }),
   reset: () => set(initial),

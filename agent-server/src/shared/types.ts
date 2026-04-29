@@ -3,6 +3,9 @@ export type ConversationDTO = {
   title: string
   model: string
   totalCostUsd?: number
+  effort?: 'low' | 'medium' | 'high'
+  attachedSkillIds?: string[]
+  attachedSubagentIds?: string[]
   createdAt: string
   updatedAt: string
 }
@@ -38,6 +41,32 @@ export type SubagentDTO = {
   tools?: string[]
   enabled: boolean
 }
+
+export type SettingsDTO = {
+  defaultModel: 'claude-sonnet-4' | 'claude-opus-4' | 'claude-haiku-4-5'
+}
+
+export type ToolDTO = {
+  id: string
+  description: string
+  enabled: boolean
+}
+
+export type UpdateConversationRequest = Partial<{
+  title: string
+  effort: 'low' | 'medium' | 'high'
+  attachedSkillIds: string[]
+  attachedSubagentIds: string[]
+}>
+
+export type UpdateSettingsRequest = Partial<{
+  defaultModel: SettingsDTO['defaultModel']
+}>
+
+export type UpdateToolRequest = Partial<{
+  enabled: boolean
+  description: string
+}>
 
 export type SSEEventName = 'assistant' | 'result' | 'tool_use_summary' | 'tool_progress' | 'error'
 

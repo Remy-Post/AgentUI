@@ -1,19 +1,57 @@
-node_modules
-dist
-out
-.DS_Store
-.eslintcache
-*.log*
-storage/
-.env
+# Dependencies
+node_modules/
 
-# Electron build artifacts inside agent-client
-agent-client/node_modules
-agent-client/out
-agent-client/dist
+# Environment
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Build output and caches
+dist/
+out/
+coverage/
+.vite/
+.cache/
+.eslintcache
+*.tsbuildinfo
+
+# Electron packaging artifacts
+release/
+*.asar
+*.blockmap
+*.dmg
+*.exe
+*.AppImage
+*.snap
+
+# Local runtime data
+storage/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.pid
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
 
 # Runtime-scaffolded SDK config; regenerated from Mongo on server start
 # and from in-code TS on CLI start
+.claude/settings.local.json
+.claude/agents/
+.claude/skills/
 agent-server/.claude/agents/
 agent-server/.claude/skills/
-.claude/settings.local.json

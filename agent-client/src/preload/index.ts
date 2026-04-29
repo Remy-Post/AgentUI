@@ -7,6 +7,9 @@ const api = {
   setApiKey: (key: string): Promise<{ ok: true } | { ok: false; reason: string }> =>
     ipcRenderer.invoke('secrets:setApiKey', key),
   hasApiKey: (): Promise<boolean> => ipcRenderer.invoke('secrets:hasApiKey'),
+  getConfig: (key: string): Promise<unknown> => ipcRenderer.invoke('config:get', key),
+  setConfig: (key: string, value: unknown): Promise<{ ok: true } | { ok: false; reason: string }> =>
+    ipcRenderer.invoke('config:set', key, value),
 }
 
 if (process.contextIsolated) {

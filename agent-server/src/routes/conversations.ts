@@ -28,6 +28,33 @@ router.get('/:id', async (req, res) => {
   return res.json(doc)
 })
 
+const EFFORT_VALUES = ['low', 'medium', 'high'] as const
+type Effort = (typeof EFFORT_VALUES)[number]
+
+router.patch('/:id', async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'invalid_id' })
+  const body = (req.body ?? {}) as Record<string, unknown>
+  const update: Record<string, unknown> = {}
+  if (typeof body.title === 'string') update.title = body.title
+  if (typeof body.effort === 'string') {
+    if (!EFFORT_VALUES.includes(body.effort as Effort)) {
+      return res.status(400).json({ error: 'invalid_effort' })
+    }
+    update.effort = body.effort
+  }
+  if (Array.isArray(body.attachedSkillIds) && body.attachedSkillIds.every((s) => typeof s === 'string')) {
+    update.attachedSkillIds = body.attachedSkillIds
+  }
+  if (Array.isArray(body.attachedSubagentIds) && body.attachedSubagentIds.every((s) => typeof s === 'string')) {
+    update.attachedSubagentIds = body.attachedSubagentIds
+  }
+  if (Object.keys(update).length === 0) return res.status(400).json({ error: 'no_op' })
+
+  const doc = await Conversation.findByIdAndUpdate(req.params.id, { $set: update }, { new: true }).lean()
+  if (!doc) return res.status(404).json({ error: 'not_found' })
+  return res.json(doc)
+})
+
 router.delete('/:id', async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'invalid_id' })
   await Promise.all([

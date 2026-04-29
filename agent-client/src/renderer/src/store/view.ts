@@ -1,0 +1,18 @@
+import { create } from 'zustand'
+
+export type View = 'chat' | 'finance' | 'settings'
+export type SettingsTab = 'api' | 'model' | 'subagents' | 'skills' | 'tools'
+
+type ViewState = {
+  view: View
+  settingsTab: SettingsTab
+  setView: (view: View) => void
+  setSettingsTab: (tab: SettingsTab) => void
+}
+
+export const useViewStore = create<ViewState>((set) => ({
+  view: 'chat',
+  settingsTab: 'api',
+  setView: (view) => set({ view }),
+  setSettingsTab: (settingsTab) => set({ settingsTab }),
+}))

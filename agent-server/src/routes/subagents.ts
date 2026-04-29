@@ -21,11 +21,40 @@ router.post('/', async (req, res) => {
   }
 })
 
+// PUT performs a full replace; for partial updates use PATCH below.
 router.put('/:id', async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'invalid_id' })
   const previous = await Subagent.findById(req.params.id)
   if (!previous) return res.status(404).json({ error: 'not_found' })
   const updated = await Subagent.findByIdAndUpdate(req.params.id, req.body, { new: true })
+  if (!updated) return res.status(404).json({ error: 'not_found' })
+
+  if (previous.name !== updated.name) {
+    await removeSubagentFile(previous.name)
+  }
+  if (updated.enabled) {
+    await writeSubagentFile(updated)
+  } else {
+    await removeSubagentFile(updated.name)
+  }
+  return res.json(updated)
+})
+
+const SUBAGENT_PATCH_FIELDS = ['name', 'description', 'prompt', 'model', 'effort', 'permissionMode', 'tools', 'enabled'] as const
+
+router.patch('/:id', async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'invalid_id' })
+  const previous = await Subagent.findById(req.params.id)
+  if (!previous) return res.status(404).json({ error: 'not_found' })
+
+  const body = (req.body ?? {}) as Record<string, unknown>
+  const update: Record<string, unknown> = {}
+  for (const field of SUBAGENT_PATCH_FIELDS) {
+    if (field in body) update[field] = body[field]
+  }
+  if (Object.keys(update).length === 0) return res.status(400).json({ error: 'no_op' })
+
+  const updated = await Subagent.findByIdAndUpdate(req.params.id, { $set: update }, { new: true })
   if (!updated) return res.status(404).json({ error: 'not_found' })
 
   if (previous.name !== updated.name) {

@@ -2,19 +2,32 @@ import { useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import MessageList from './MessageList'
 import Composer from './Composer'
+import ChatHeader from './ChatHeader'
 import { apiFetch } from '../lib/api'
 import { streamPost } from '../hooks/useSSE'
 import { useStreamingStore } from '../store/streaming'
-import type { MessageDTO } from '@shared/types'
+import type { ConversationDTO, MessageDTO } from '@shared/types'
 
 type Props = {
   conversationId: string | null
+  inspectorOpen: boolean
+  onToggleInspector: () => void
 }
 
-export default function ChatView({ conversationId }: Props): React.JSX.Element {
+export default function ChatView({
+  conversationId,
+  inspectorOpen,
+  onToggleInspector,
+}: Props): React.JSX.Element {
   const queryClient = useQueryClient()
   const streaming = useStreamingStore()
   const abortRef = useRef<AbortController | null>(null)
+
+  const conversationsQuery = useQuery({
+    queryKey: ['conversations'],
+    queryFn: () => apiFetch<ConversationDTO[]>('/api/sessions'),
+  })
+  const conversation = conversationsQuery.data?.find((c) => c._id === conversationId) ?? null
 
   const messagesQuery = useQuery({
     queryKey: ['messages', conversationId],
@@ -24,18 +37,25 @@ export default function ChatView({ conversationId }: Props): React.JSX.Element {
     },
     enabled: !!conversationId,
   })
+  const messages = messagesQuery.data ?? []
 
   useEffect(() => {
+    streaming.clearToolEvents()
     return () => {
       abortRef.current?.abort()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId])
 
-  if (!conversationId) {
+  if (!conversationId || !conversation) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-zinc-500">
-        Select a conversation or create a new one.
-      </div>
+      <section className="chat" style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <div className="chrome" style={{ padding: 24, textAlign: 'center' }}>
+          {!conversationId
+            ? 'Select a conversation or create a new one.'
+            : 'Loading conversation…'}
+        </div>
+      </section>
     )
   }
 
@@ -80,14 +100,22 @@ export default function ChatView({ conversationId }: Props): React.JSX.Element {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-hidden">
-        <MessageList conversationId={conversationId} messages={messagesQuery.data ?? []} />
-      </div>
+    <section className="chat">
+      <ChatHeader
+        conversation={conversation}
+        messages={messages}
+        inspectorOpen={inspectorOpen}
+        onToggleInspector={onToggleInspector}
+      />
+      <MessageList
+        conversationId={conversationId}
+        messages={messages}
+        modelLabel={conversation.model}
+      />
       <Composer
         disabled={streaming.active && streaming.conversationId === conversationId}
         onSubmit={handleSubmit}
       />
-    </div>
+    </section>
   )
 }

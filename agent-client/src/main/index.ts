@@ -5,6 +5,7 @@ import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/icon.png?asset'
 import { startServerProcess, stopServerProcess } from './server-process'
 import { readSecrets, setApiKey, hasApiKey } from './secrets'
+import { getConfig, setConfig } from './config'
 
 let serverPort: number | null = null
 
@@ -15,7 +16,8 @@ function applyCSP(port: number): void {
     const policy = [
       "default-src 'self'",
       "script-src 'self'",
-      "style-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data:",
       `connect-src 'self' http://127.0.0.1:${port} ws://127.0.0.1:${port}`,
     ].join('; ')
@@ -63,6 +65,8 @@ ipcMain.handle('server:getPort', () => serverPort)
 ipcMain.handle('app:getVersion', () => app.getVersion())
 ipcMain.handle('secrets:setApiKey', async (_event, key: string) => setApiKey(key))
 ipcMain.handle('secrets:hasApiKey', async () => hasApiKey())
+ipcMain.handle('config:get', async (_event, key: string) => getConfig(key))
+ipcMain.handle('config:set', async (_event, key: string, value: unknown) => setConfig(key, value))
 
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.electron')

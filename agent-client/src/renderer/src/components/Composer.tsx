@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { Send } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowRight, CornerDownLeft } from 'lucide-react'
 
 type Props = {
   disabled: boolean
@@ -13,7 +13,7 @@ export default function Composer({ disabled, onSubmit }: Props): React.JSX.Eleme
   useEffect(() => {
     if (!ref.current) return
     ref.current.style.height = 'auto'
-    ref.current.style.height = `${Math.min(ref.current.scrollHeight, 200)}px`
+    ref.current.style.height = `${Math.min(ref.current.scrollHeight, 220)}px`
   }, [value])
 
   const handleSubmit = (): void => {
@@ -24,10 +24,11 @@ export default function Composer({ disabled, onSubmit }: Props): React.JSX.Eleme
   }
 
   return (
-    <div className="border-t border-zinc-800 bg-zinc-950 px-6 py-3">
-      <div className="flex items-end gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2">
+    <div className="composer">
+      <div className="composer-shell">
         <textarea
           ref={ref}
+          className="composer-input"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
@@ -37,18 +38,27 @@ export default function Composer({ disabled, onSubmit }: Props): React.JSX.Eleme
             }
           }}
           rows={1}
-          placeholder={disabled ? 'Streaming...' : 'Send a message (Enter to send, Shift+Enter for newline)'}
-          className="flex-1 resize-none bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
+          placeholder={disabled ? 'Streaming…' : 'Ask Claude anything…'}
         />
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={disabled || !value.trim()}
-          className="rounded-md bg-blue-600 p-2 text-white disabled:bg-zinc-700 disabled:text-zinc-500"
-          title="Send"
-        >
-          <Send size={16} />
-        </button>
+        <div className="composer-row">
+          <div className="composer-meta">
+            <span className="chrome" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <CornerDownLeft size={12} /> Enter to send
+            </span>
+            <span className="chrome">·</span>
+            <span className="chrome mono">{value.length} chars</span>
+          </div>
+          <button
+            type="button"
+            className="send-btn"
+            onClick={handleSubmit}
+            disabled={disabled || !value.trim()}
+            title="Send"
+          >
+            <ArrowRight size={12} />
+            Send
+          </button>
+        </div>
       </div>
     </div>
   )

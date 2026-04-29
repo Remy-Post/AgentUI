@@ -1,0 +1,155 @@
+import { useMemo } from 'react'
+import RailHandle from './RailHandle'
+import { useStreamingStore } from '../store/streaming'
+import { truncate } from '../lib/format'
+import type { MessageDTO } from '@shared/types'
+
+type Props = {
+  conversationId: string | null
+  messages: MessageDTO[]
+  width: number
+  onWidthChange: (next: number) => void
+  frameRef: React.RefObject<HTMLDivElement | null>
+}
+
+function extractToolNameFromContent(content: unknown): string {
+  if (typeof content === 'string') return 'tool'
+  if (content && typeof content === 'object') {
+    const maybe = content as { kind?: string; summary?: unknown; tool_name?: unknown }
+    if (typeof maybe.tool_name === 'string') return maybe.tool_name
+    if (maybe.kind === 'summary' && maybe.summary && typeof maybe.summary === 'object') {
+      const inner = maybe.summary as { tool_name?: unknown }
+      if (typeof inner.tool_name === 'string') return inner.tool_name
+    }
+  }
+  return 'tool'
+}
+
+function asString(content: unknown): string {
+  if (typeof content === 'string') return content
+  return ''
+}
+
+export default function RunInspector({
+  conversationId,
+  messages,
+  width,
+  onWidthChange,
+  frameRef,
+}: Props): React.JSX.Element {
+  const streaming = useStreamingStore()
+  const isStreamingHere = streaming.active && streaming.conversationId === conversationId
+
+  const turns = useMemo(
+    () => messages.filter((m) => m.role === 'user' || m.role === 'assistant').length,
+    [messages],
+  )
+
+  const combinedTools = useMemo(() => {
+    const historical = messages
+      .filter((m) => m.role === 'tool')
+      .map((m) => extractToolNameFromContent(m.content))
+    const live = streaming.toolEvents.map((e) => e.tool_name)
+    const all = [...historical, ...live]
+    const deduped: string[] = []
+    for (const name of all) {
+      if (deduped[deduped.length - 1] !== name) deduped.push(name)
+    }
+    return deduped.slice(-8)
+  }, [messages, streaming.toolEvents])
+
+  const lastUser = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i]
+      if (m.role === 'user' && typeof m.content === 'string') return m.content
+    }
+    return ''
+  }, [messages])
+
+  const lastAssistant = useMemo(() => {
+    if (isStreamingHere && streaming.buffer) return streaming.buffer
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i]
+      if (m.role === 'assistant' && typeof m.content === 'string') return m.content
+    }
+    return ''
+  }, [messages, isStreamingHere, streaming.buffer])
+
+  return (
+    <>
+      <RailHandle width={width} onWidthChange={onWidthChange} frameRef={frameRef} />
+
+      <div className="rail-section head">
+        <div className="cap">Run inspector</div>
+        <div className="rail-status">{isStreamingHere ? 'Streaming response…' : 'Idle'}</div>
+      </div>
+
+      <div className="rail-section">
+        <div className="rail-stat-grid">
+          <div>
+            <div className="cap">turns</div>
+            <div className="rail-stat-value">{turns}</div>
+          </div>
+          <div>
+            <div className="cap">in tokens</div>
+            {/* TODO: wire to real telemetry */}
+            <div className="rail-stat-value">—</div>
+          </div>
+          <div>
+            <div className="cap">out tokens</div>
+            {/* TODO: wire to real telemetry */}
+            <div className="rail-stat-value">—</div>
+          </div>
+          <div>
+            <div className="cap">tool calls</div>
+            <div className="rail-stat-value">{combinedTools.length}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rail-section">
+        <div className="cap">Tool activity</div>
+        {combinedTools.length === 0 ? (
+          <div className="chrome" style={{ marginTop: 6 }}>
+            no tools yet
+          </div>
+        ) : (
+          <ul className="rail-tools">
+            {combinedTools.map((name, i) => (
+              <li key={`${name}-${i}`}>{name}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="rail-section recap">
+        <div className="cap">Last turn</div>
+        {!lastUser && !lastAssistant && (
+          <div className="chrome" style={{ marginTop: 6 }}>
+            no messages yet
+          </div>
+        )}
+        {lastUser && (
+          <p>
+            <span className="who">you:</span>
+            {truncate(asString(lastUser), 220)}
+          </p>
+        )}
+        {lastAssistant && (
+          <p>
+            <span className="who">claude:</span>
+            {truncate(asString(lastAssistant), 220)}
+          </p>
+        )}
+      </div>
+
+      <div className="rail-section">
+        <div className="cap">Active subagent</div>
+        {/* TODO: wire when subagent invocation is exposed by streaming events */}
+        <div className="mono" style={{ fontSize: 12, marginTop: 6, color: 'var(--color-ink-3)' }}>
+          — none —
+        </div>
+      </div>
+    </>
+  )
+}

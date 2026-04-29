@@ -21,6 +21,7 @@ router.post('/', async (req, res) => {
   }
 })
 
+// PUT performs a full replace; for partial updates use PATCH below.
 router.put('/:id', async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'invalid_id' })
   const previous = await Skill.findById(req.params.id)
@@ -29,6 +30,34 @@ router.put('/:id', async (req, res) => {
   if (!updated) return res.status(404).json({ error: 'not_found' })
 
   // Remove old file if name changed; rewrite under current state.
+  if (previous.name !== updated.name) {
+    await removeSkillFile(previous.name)
+  }
+  if (updated.enabled) {
+    await writeSkillFile(updated)
+  } else {
+    await removeSkillFile(updated.name)
+  }
+  return res.json(updated)
+})
+
+const SKILL_PATCH_FIELDS = ['name', 'description', 'body', 'parameters', 'allowedTools', 'enabled'] as const
+
+router.patch('/:id', async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'invalid_id' })
+  const previous = await Skill.findById(req.params.id)
+  if (!previous) return res.status(404).json({ error: 'not_found' })
+
+  const body = (req.body ?? {}) as Record<string, unknown>
+  const update: Record<string, unknown> = {}
+  for (const field of SKILL_PATCH_FIELDS) {
+    if (field in body) update[field] = body[field]
+  }
+  if (Object.keys(update).length === 0) return res.status(400).json({ error: 'no_op' })
+
+  const updated = await Skill.findByIdAndUpdate(req.params.id, { $set: update }, { new: true })
+  if (!updated) return res.status(404).json({ error: 'not_found' })
+
   if (previous.name !== updated.name) {
     await removeSkillFile(previous.name)
   }

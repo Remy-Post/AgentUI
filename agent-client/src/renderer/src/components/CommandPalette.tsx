@@ -53,9 +53,7 @@ function readCacheSnapshot(queryClient: ReturnType<typeof useQueryClient>): Cach
       ) {
         return []
       }
-
       if (!Array.isArray(data)) return []
-
       return [{ conversationId: queryKey[1], messages: data }]
     })
 
@@ -68,7 +66,7 @@ function usePaletteData(): CacheSnapshot {
   return useSyncExternalStore(
     (onStoreChange) => queryClient.getQueryCache().subscribe(() => onStoreChange()),
     () => readCacheSnapshot(queryClient),
-    () => readCacheSnapshot(queryClient)
+    () => readCacheSnapshot(queryClient),
   )
 }
 
@@ -117,7 +115,7 @@ function buildExcerpt(content: string, index: number, queryLength: number): stri
 
 function buildConversationResults(
   conversations: ConversationDTO[],
-  query: string
+  query: string,
 ): ConversationResult[] {
   const sorted = [...conversations].sort(compareByNewest)
 
@@ -128,7 +126,7 @@ function buildConversationResults(
       title: conversation.title,
       subtitle: conversation.model,
       updatedAt: conversation.updatedAt,
-      score: 0
+      score: 0,
     }))
   }
 
@@ -136,7 +134,6 @@ function buildConversationResults(
     .flatMap((conversation) => {
       const score = scoreTitleMatch(conversation.title, query)
       if (score === null) return []
-
       return [
         {
           kind: 'conversation' as const,
@@ -144,8 +141,8 @@ function buildConversationResults(
           title: conversation.title,
           subtitle: conversation.model,
           updatedAt: conversation.updatedAt,
-          score
-        }
+          score,
+        },
       ]
     })
     .sort((left, right) => right.score - left.score || compareByNewest(left, right))
@@ -156,18 +153,15 @@ function buildMessageResults(
   messageGroups: CachedMessageGroup[],
   conversations: ConversationDTO[],
   query: string,
-  excludedConversationIds: Set<string>
+  excludedConversationIds: Set<string>,
 ): MessageResult[] {
   if (!query) return []
 
-  const conversationsById = new Map(
-    conversations.map((conversation) => [conversation._id, conversation])
-  )
+  const conversationsById = new Map(conversations.map((c) => [c._id, c]))
 
   return messageGroups
     .flatMap((group) => {
       if (excludedConversationIds.has(group.conversationId)) return []
-
       const conversation = conversationsById.get(group.conversationId)
       if (!conversation) return []
 
@@ -180,7 +174,6 @@ function buildMessageResults(
         ) {
           continue
         }
-
         const normalizedContent = message.content.toLowerCase()
         const index = normalizedContent.indexOf(query)
         if (index < 0) continue
@@ -191,7 +184,7 @@ function buildMessageResults(
           title: conversation.title,
           excerpt: buildExcerpt(message.content, index, query.length),
           updatedAt: message.createdAt,
-          score: scoreMessageMatch(normalizedContent, query, index)
+          score: scoreMessageMatch(normalizedContent, query, index),
         }
 
         if (
@@ -210,14 +203,6 @@ function buildMessageResults(
     .slice(0, 6)
 }
 
-function sectionHeading(label: string): React.JSX.Element {
-  return (
-    <div className="px-3 pb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">
-      {label}
-    </div>
-  )
-}
-
 function resultKey(result: PaletteResult): string {
   if (result.kind === 'conversation') return `conversation:${result.conversationId}`
   return `message:${result.conversationId}:${result.updatedAt}`
@@ -228,20 +213,15 @@ export default function CommandPalette({
   selectedConversationId,
   onClose,
   onQueryChange,
-  onSelectConversation
+  onSelectConversation,
 }: Props): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
   const { conversations, messageGroups } = usePaletteData()
   const normalizedQuery = normalize(query)
   const conversationResults = buildConversationResults(conversations, normalizedQuery)
-  const titleMatchedIds = new Set(conversationResults.map((result) => result.conversationId))
-  const messageResults = buildMessageResults(
-    messageGroups,
-    conversations,
-    normalizedQuery,
-    titleMatchedIds
-  )
+  const titleMatchedIds = new Set(conversationResults.map((r) => r.conversationId))
+  const messageResults = buildMessageResults(messageGroups, conversations, normalizedQuery, titleMatchedIds)
   const allResults = [...conversationResults, ...messageResults]
   const activeIndex =
     allResults.length === 0
@@ -259,140 +239,137 @@ export default function CommandPalette({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-zinc-950/70 px-4 pt-20 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-2xl overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 shadow-2xl shadow-black/40"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center gap-3 border-b border-zinc-800 px-4 py-3">
-          <Search size={16} className="text-zinc-500" />
+    <div className="palette-backdrop" onClick={onClose}>
+      <div className="palette" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="palette-input-row">
+          <Search size={16} />
           <input
             ref={inputRef}
             value={query}
-            onChange={(event) => {
+            onChange={(e) => {
               setSelectedIndex(0)
-              onQueryChange(event.target.value)
+              onQueryChange(e.target.value)
             }}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                event.preventDefault()
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault()
                 onClose()
                 return
               }
-
-              if (event.key === 'ArrowDown') {
-                event.preventDefault()
+              if (e.key === 'ArrowDown') {
+                e.preventDefault()
                 if (allResults.length > 0) {
                   setSelectedIndex((activeIndex + 1) % allResults.length)
                 }
                 return
               }
-
-              if (event.key === 'ArrowUp') {
-                event.preventDefault()
+              if (e.key === 'ArrowUp') {
+                e.preventDefault()
                 if (allResults.length > 0) {
                   setSelectedIndex(activeIndex <= 0 ? allResults.length - 1 : activeIndex - 1)
                 }
                 return
               }
-
-              if (event.key === 'Enter' && activeIndex >= 0) {
-                event.preventDefault()
+              if (e.key === 'Enter' && activeIndex >= 0) {
+                e.preventDefault()
                 submitSelection(allResults[activeIndex])
               }
             }}
             placeholder="Search conversations and cached messages"
-            className="flex-1 bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-500"
+            className="palette-input"
           />
-          <div className="rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-500">
-            Esc
-          </div>
+          <span className="chrome">Esc</span>
         </div>
 
-        <div className="max-h-[28rem] overflow-y-auto py-3">
+        <div className="palette-results">
           {conversationResults.length > 0 && (
-            <div>
-              {sectionHeading(normalizedQuery ? 'Conversations' : 'Recent conversations')}
-              <div className="space-y-1 px-2">
-                {conversationResults.map((result, index) => {
-                  const isSelected = index === activeIndex
-                  const isActiveConversation = result.conversationId === selectedConversationId
-
-                  return (
-                    <button
-                      key={resultKey(result)}
-                      type="button"
-                      tabIndex={-1}
-                      onMouseEnter={() => setSelectedIndex(index)}
-                      onClick={() => submitSelection(result)}
-                      className={`flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left ${
-                        isSelected
-                          ? 'bg-zinc-800 text-zinc-100'
-                          : 'text-zinc-300 hover:bg-zinc-800/70'
-                      }`}
-                    >
-                      <div className="mt-0.5 rounded-md border border-zinc-700 bg-zinc-950 p-2 text-zinc-500">
-                        <Search size={14} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm text-zinc-100">{result.title}</div>
-                        <div className="truncate text-xs text-zinc-500">{result.subtitle}</div>
-                      </div>
-                      {isActiveConversation && (
-                        <div className="flex items-center gap-1 text-xs text-blue-300">
-                          <Check size={12} />
-                          Active
-                        </div>
-                      )}
-                    </button>
-                  )
-                })}
+            <>
+              <div className="palette-section-head">
+                {normalizedQuery ? 'Conversations' : 'Recent conversations'}
               </div>
-            </div>
+              {conversationResults.map((result, index) => {
+                const isSelected = index === activeIndex
+                const isActive = result.conversationId === selectedConversationId
+                return (
+                  <button
+                    key={resultKey(result)}
+                    type="button"
+                    tabIndex={-1}
+                    onMouseEnter={() => setSelectedIndex(index)}
+                    onClick={() => submitSelection(result)}
+                    className={`palette-row ${isSelected ? 'selected' : ''}`}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      background: isSelected ? 'var(--color-active-soft)' : undefined,
+                    }}
+                  >
+                    <Search size={14} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {result.title}
+                      </div>
+                      <div className="preview">{result.subtitle}</div>
+                    </div>
+                    {isActive && (
+                      <span style={{ color: 'var(--color-good)', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                        <Check size={12} />
+                        Active
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </>
           )}
 
           {messageResults.length > 0 && (
-            <div className="mt-4">
-              {sectionHeading('Recent messages')}
-              <div className="space-y-1 px-2">
-                {messageResults.map((result, index) => {
-                  const absoluteIndex = conversationResults.length + index
-                  const isSelected = absoluteIndex === activeIndex
-
-                  return (
-                    <button
-                      key={resultKey(result)}
-                      type="button"
-                      tabIndex={-1}
-                      onMouseEnter={() => setSelectedIndex(absoluteIndex)}
-                      onClick={() => submitSelection(result)}
-                      className={`flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left ${
-                        isSelected
-                          ? 'bg-zinc-800 text-zinc-100'
-                          : 'text-zinc-300 hover:bg-zinc-800/70'
-                      }`}
-                    >
-                      <div className="mt-0.5 rounded-md border border-zinc-700 bg-zinc-950 p-2 text-zinc-500">
-                        <MessageSquare size={14} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm text-zinc-100">{result.title}</div>
-                        <div className="line-clamp-2 text-xs leading-5 text-zinc-500">
-                          {result.excerpt}
-                        </div>
-                      </div>
-                    </button>
-                  )
-                })}
+            <>
+              <div className="palette-section-head" style={{ marginTop: 8 }}>
+                Recent messages
               </div>
-            </div>
+              {messageResults.map((result, index) => {
+                const absoluteIndex = conversationResults.length + index
+                const isSelected = absoluteIndex === activeIndex
+                return (
+                  <button
+                    key={resultKey(result)}
+                    type="button"
+                    tabIndex={-1}
+                    onMouseEnter={() => setSelectedIndex(absoluteIndex)}
+                    onClick={() => submitSelection(result)}
+                    className={`palette-row ${isSelected ? 'selected' : ''}`}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      background: isSelected ? 'var(--color-active-soft)' : undefined,
+                    }}
+                  >
+                    <MessageSquare size={14} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {result.title}
+                      </div>
+                      <div
+                        className="preview"
+                        style={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {result.excerpt}
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </>
           )}
 
           {allResults.length === 0 && (
-            <div className="px-6 py-8 text-center text-sm text-zinc-500">
+            <div style={{ padding: '24px 16px', textAlign: 'center' }} className="chrome">
               {normalizedQuery
                 ? 'No matching conversations or cached messages.'
                 : 'No conversations available yet.'}
