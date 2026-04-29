@@ -15,8 +15,8 @@ type Entry = {
   busy: boolean
 }
 
-const MAX_SESSIONS = 8
-const IDLE_MS = 30 * 60_000
+const MAX_SESSIONS = Number(process.env.MAX_SESSIONS ?? 8)
+const IDLE_MS = Number(process.env.IDLE_MS ?? 30 * 60_000) // 30 minutes
 
 const cache = new Map<string, Entry>()
 let evictionTimer: NodeJS.Timeout | null = null
@@ -32,7 +32,7 @@ function startEvictionTimer(): void {
         void disposeSession(entry.session)
       }
     }
-  }, 60_000)
+  }, IDLE_MS)
   evictionTimer.unref?.()
 }
 
@@ -66,6 +66,7 @@ export async function getOrCreateSession(conversationId: string, model: string =
     return existing
   }
 
+  // Keep the cache bounded by evicting the least recently used idle session when at capacity.
   if (cache.size >= MAX_SESSIONS) evictOldestIdle()
 
   await syncFromDb()
@@ -76,7 +77,7 @@ export async function getOrCreateSession(conversationId: string, model: string =
     session,
     lastUsed: Date.now(),
     createdAt: Date.now(),
-    busy: false,
+    busy: false,    
   }
   cache.set(conversationId, entry)
   startEvictionTimer()
