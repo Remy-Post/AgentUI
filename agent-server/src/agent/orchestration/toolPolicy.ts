@@ -1,4 +1,9 @@
 import type { CanUseTool, PermissionResult } from '@anthropic-ai/claude-agent-sdk'
+import {
+  type GoogleWorkspaceService,
+  googleWorkspaceServiceFromToolId,
+  isGoogleWorkspaceToolId,
+} from '../../mcp/gwsTypes.ts'
 
 export type ToolRecord = {
   id: string
@@ -11,6 +16,7 @@ export type RuntimeToolPolicy = {
   disallowedTools: string[]
   enabledToolIds: Set<string>
   enabledSdkTools: Set<string>
+  enabledWorkspaceServices: Set<GoogleWorkspaceService>
 }
 
 const AGENT_TOOL = 'Agent'
@@ -40,7 +46,6 @@ const KNOWN_SDK_TOOLS = [
   'NotebookEdit',
 ]
 
-const AUTO_ALLOWED_TOOLS = new Set(['Agent', 'Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch'])
 const WRITE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 const WEB_TOOLS = new Set(['WebFetch', 'WebSearch'])
 
@@ -71,6 +76,7 @@ export function expandToolNames(toolNames: Iterable<string> | undefined): string
 
   const expanded: string[] = []
   for (const name of toolNames) {
+    if (isGoogleWorkspaceToolId(name)) continue
     const mapped = UI_TOOL_TO_SDK_TOOLS[name]
     if (mapped) expanded.push(...mapped)
     else if (name) expanded.push(name)
@@ -81,14 +87,18 @@ export function expandToolNames(toolNames: Iterable<string> | undefined): string
 export function resolveToolPolicy(tools: ToolRecord[]): RuntimeToolPolicy {
   const enabledToolIds = new Set(tools.filter((tool) => tool.enabled).map((tool) => tool.id))
   const enabledSdkTools = new Set(expandToolNames(enabledToolIds))
+  const enabledWorkspaceServices = new Set(
+    tools
+      .filter((tool) => tool.enabled)
+      .map((tool) => googleWorkspaceServiceFromToolId(tool.id))
+      .filter((service): service is GoogleWorkspaceService => service !== null),
+  )
   const disabledSdkTools = new Set(
     tools.flatMap((tool) => (tool.enabled ? [] : expandToolNames([tool.id]))),
   )
 
   const availableTools = unique([AGENT_TOOL, ...enabledSdkTools])
-  const allowedTools = unique(
-    availableTools.filter((tool) => AUTO_ALLOWED_TOOLS.has(tool) || (tool === 'Bash' && enabledSdkTools.has('Bash'))),
-  )
+  const allowedTools = unique(availableTools)
   const disallowedTools = unique(
     KNOWN_SDK_TOOLS.filter((tool) => !enabledSdkTools.has(tool) || disabledSdkTools.has(tool)),
   )
@@ -99,11 +109,28 @@ export function resolveToolPolicy(tools: ToolRecord[]): RuntimeToolPolicy {
     disallowedTools,
     enabledToolIds,
     enabledSdkTools,
+    enabledWorkspaceServices,
   }
 }
 
 export function filterEnabledSdkTools(toolNames: Iterable<string>, policy: RuntimeToolPolicy): string[] {
   return unique(expandToolNames(toolNames).filter((tool) => policy.enabledSdkTools.has(tool)))
+}
+
+export function filterEnabledWorkspaceServices(
+  services: Iterable<string> | undefined,
+  policy: RuntimeToolPolicy,
+): GoogleWorkspaceService[] {
+  const out: GoogleWorkspaceService[] = []
+  const seen = new Set<GoogleWorkspaceService>()
+  for (const service of services ?? []) {
+    if (!policy.enabledWorkspaceServices.has(service as GoogleWorkspaceService)) continue
+    const workspaceService = service as GoogleWorkspaceService
+    if (seen.has(workspaceService)) continue
+    seen.add(workspaceService)
+    out.push(workspaceService)
+  }
+  return out
 }
 
 export function isSensitiveToolPath(input: Record<string, unknown>): boolean {
@@ -121,6 +148,15 @@ export function isForbiddenBashInput(input: Record<string, unknown>): boolean {
   const command = typeof input.command === 'string' ? input.command : ''
   if (!command) return false
   return FORBIDDEN_BASH_PATTERNS.some((pattern) => pattern.test(command))
+}
+
+function googleWorkspaceServiceFromMcpTool(toolName: string): GoogleWorkspaceService | null {
+  const match = /^mcp__agentui_gws_[A-Za-z0-9_]+__gws_(drive|gmail|calendar|sheets|docs)_call$/.exec(toolName)
+  return match?.[1] as GoogleWorkspaceService | null
+}
+
+function isGoogleWorkspaceSchemaMcpTool(toolName: string): boolean {
+  return /^mcp__agentui_gws_[A-Za-z0-9_]+__gws_schema$/.test(toolName)
 }
 
 function allow(toolUseID?: string): PermissionResult {
@@ -143,6 +179,19 @@ export function makeToolPermissionPolicy(policy: RuntimeToolPolicy): CanUseTool 
 
     if (!isSubagent) {
       return deny('The parent orchestrator may only delegate through the Agent tool.', options.toolUseID)
+    }
+
+    const workspaceService = googleWorkspaceServiceFromMcpTool(toolName)
+    if (workspaceService) {
+      return policy.enabledWorkspaceServices.has(workspaceService)
+        ? allow(options.toolUseID)
+        : deny(`Google Workspace ${workspaceService} access is disabled.`, options.toolUseID)
+    }
+
+    if (isGoogleWorkspaceSchemaMcpTool(toolName)) {
+      return policy.enabledWorkspaceServices.size > 0
+        ? allow(options.toolUseID)
+        : deny('Google Workspace access is disabled.', options.toolUseID)
     }
 
     if (!policy.enabledSdkTools.has(toolName)) {

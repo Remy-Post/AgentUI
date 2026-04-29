@@ -41,7 +41,7 @@ export async function runConversationTurn({
   isClosed,
 }: RunConversationTurnInput): Promise<RunConversationTurnResult> {
   await syncFromDb()
-  const options = await buildQueryOptions(conversation)
+  const options = await buildQueryOptions(conversation, content)
   const stream = query({ prompt: content, options })
   let totalCostUsd: number | undefined
 

@@ -1,6 +1,14 @@
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { AgentDefinition, PermissionMode } from '@anthropic-ai/claude-agent-sdk'
+import type { GoogleWorkspaceService } from '../../mcp/gwsTypes.ts'
 import type { RuntimeToolPolicy } from './toolPolicy.ts'
-import { AGENT_TOOL_NAME, expandToolNames, filterEnabledSdkTools } from './toolPolicy.ts'
+import {
+  AGENT_TOOL_NAME,
+  expandToolNames,
+  filterEnabledSdkTools,
+  filterEnabledWorkspaceServices,
+} from './toolPolicy.ts'
 
 export const ORCHESTRATOR_AGENT_NAME = 'agentui_orchestrator'
 
@@ -14,75 +22,16 @@ export type RuntimeSubagentRecord = {
   permissionMode?: string
   tools?: string[]
   disallowedTools?: string[]
+  mcpServices?: GoogleWorkspaceService[]
 }
-
-const SAFE_RESEARCH_TOOLS = ['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch']
-
-const HIDDEN_RUNTIME_AGENTS: RuntimeSubagentRecord[] = [
-  {
-    name: 'runtime_researcher',
-    description: 'Explores files and web context, then reports concise findings.',
-    prompt: [
-      'You are a scoped research subagent for AgentUI.',
-      'Use only the context and task you are given.',
-      'Search, inspect, and summarize facts that help the parent answer.',
-      'Do not edit files or perform side effects.',
-      'Return concise findings, relevant paths, and any uncertainty.',
-    ].join('\n'),
-    model: 'claude-sonnet-4',
-    effort: 'medium',
-    permissionMode: 'dontAsk',
-    tools: SAFE_RESEARCH_TOOLS,
-  },
-  {
-    name: 'runtime_code_worker',
-    description: 'Performs narrowly scoped code inspection or safe file edits.',
-    prompt: [
-      'You are a scoped code-work subagent for AgentUI.',
-      'Work only on the task and files explicitly relevant to your prompt.',
-      'Prefer small targeted edits and report changed paths.',
-      'Do not run destructive shell commands or touch sensitive files.',
-      'Return a concise implementation summary and verification notes.',
-    ].join('\n'),
-    model: 'claude-sonnet-4',
-    effort: 'medium',
-    permissionMode: 'dontAsk',
-    tools: ['Read', 'Grep', 'Glob', 'Edit', 'Write', 'MultiEdit'],
-  },
-  {
-    name: 'runtime_test_runner',
-    description: 'Runs targeted checks and reports failures concisely.',
-    prompt: [
-      'You are a scoped test-running subagent for AgentUI.',
-      'Run only checks that are relevant to the delegated task.',
-      'Avoid long-running or destructive commands.',
-      'Return command names, pass/fail status, and the shortest useful failure details.',
-    ].join('\n'),
-    model: 'claude-haiku-4-5-20251001',
-    effort: 'low',
-    permissionMode: 'dontAsk',
-    tools: ['Read', 'Grep', 'Glob', 'Bash'],
-  },
-  {
-    name: 'runtime_automation_worker',
-    description: 'Handles scoped personal automation or external lookup tasks.',
-    prompt: [
-      'You are a scoped automation subagent for AgentUI.',
-      'Use web and shell tools only when they are explicitly needed and allowed.',
-      'Avoid irreversible external side effects.',
-      'Return actions taken, results, and any blocked unsafe operation.',
-    ].join('\n'),
-    model: 'claude-sonnet-4',
-    effort: 'medium',
-    permissionMode: 'dontAsk',
-    tools: ['Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'Bash'],
-  },
-]
 
 const ORCHESTRATOR_PROMPT = [
   'You are the AgentUI parent orchestrator.',
   'Your primary job is intent understanding, decomposition, delegation, and aggregation.',
   'You have minimal direct tool access. Use the Agent tool for any tool-heavy work.',
+  'Use one subagent for exactly one clear purpose or problem.',
+  'When there are multiple distinct issues, delegate them to multiple scoped subagents rather than one broad worker.',
+  'Use only the subagents made available for this turn; they were selected or created from MongoDB for this request.',
   'Spawn zero subagents only for simple answers, clarification questions, or tasks that do not need tools.',
   'When delegating, give each subagent a scoped task, minimal necessary context, expected output, and safety constraints.',
   'Ask a concise clarification question when the request is ambiguous, unsafe, or missing required context.',
@@ -121,12 +70,117 @@ function asEffort(value: string | undefined): AgentDefinition['effort'] | undefi
   return undefined
 }
 
+function unique(values: Iterable<string>): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const value of values) {
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    out.push(value)
+  }
+  return out
+}
+
+function gwsServerScriptPath(): string {
+  const thisFile = fileURLToPath(import.meta.url)
+  const extension = thisFile.endsWith('.ts') ? 'ts' : 'js'
+  return resolve(dirname(thisFile), '..', '..', 'mcp', `gwsServer.${extension}`)
+}
+
+function gwsServerArgs(): string[] {
+  const scriptPath = gwsServerScriptPath()
+  if (scriptPath.endsWith('.ts')) return ['--import', 'tsx', scriptPath]
+  return [scriptPath]
+}
+
+function envValue(name: string): string | undefined {
+  const value = process.env[name]
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+function pathEnvName(): 'PATH' | 'Path' {
+  return process.platform === 'win32' ? 'Path' : 'PATH'
+}
+
+function withNodeBinPaths(pathValue: string | undefined): string {
+  const delimiter = process.platform === 'win32' ? ';' : ':'
+  const current = pathValue ?? ''
+  const nodeBinPaths = unique([
+    resolve(process.cwd(), 'node_modules', '.bin'),
+    resolve(process.cwd(), '..', 'node_modules', '.bin'),
+    resolve(dirname(gwsServerScriptPath()), '..', '..', '..', 'node_modules', '.bin'),
+  ])
+  return unique([...nodeBinPaths, ...current.split(delimiter).filter(Boolean)]).join(delimiter)
+}
+
+function buildGwsMcpEnv(services: GoogleWorkspaceService[]): Record<string, string> {
+  const env: Record<string, string> = {}
+  const copyEnvNames = [
+    'SystemRoot',
+    'WINDIR',
+    'HOME',
+    'USERPROFILE',
+    'APPDATA',
+    'LOCALAPPDATA',
+    'TEMP',
+    'TMP',
+    'GOOGLE_WORKSPACE_CLI_CONFIG_DIR',
+    'GOOGLE_WORKSPACE_CLI_CREDENTIALS_FILE',
+    'GOOGLE_WORKSPACE_CLI_KEYRING_BACKEND',
+    'GOOGLE_WORKSPACE_PROJECT_ID',
+  ]
+
+  for (const name of copyEnvNames) {
+    const value = envValue(name)
+    if (value) env[name] = value
+  }
+
+  const binaryPath = envValue('GWS_BINARY_PATH')
+  if (binaryPath) env.GWS_BINARY_PATH = binaryPath
+
+  const pathName = pathEnvName()
+  env[pathName] = withNodeBinPaths(process.env[pathName] ?? process.env.PATH)
+  if (process.platform === 'win32') {
+    const pathext = envValue('PATHEXT')
+    if (pathext) env.PATHEXT = pathext
+  }
+
+  env.GWS_ALLOWED_SERVICES = services.join(',')
+  return env
+}
+
+function gwsMcpServerName(services: GoogleWorkspaceService[]): string {
+  return `agentui_gws_${services.join('_')}`
+}
+
+function buildGwsMcpServers(services: GoogleWorkspaceService[]): {
+  mcpServers?: NonNullable<AgentDefinition['mcpServers']>
+  allowedTools: string[]
+} {
+  if (services.length === 0) return { allowedTools: [] }
+  const serverName = gwsMcpServerName(services)
+  return {
+    mcpServers: [
+      {
+        [serverName]: {
+          type: 'stdio',
+          command: process.execPath,
+          args: gwsServerArgs(),
+          env: buildGwsMcpEnv(services),
+        },
+      },
+    ],
+    allowedTools: [`mcp__${serverName}__*`],
+  }
+}
+
 function buildSubagentDefinition(
   source: RuntimeSubagentRecord,
   policy: RuntimeToolPolicy,
 ): AgentDefinition {
-  const requestedTools = source.tools && source.tools.length > 0 ? source.tools : SAFE_RESEARCH_TOOLS
-  const tools = filterEnabledSdkTools(requestedTools, policy)
+  const tools = filterEnabledSdkTools(source.tools ?? [], policy)
+  const mcpServices = filterEnabledWorkspaceServices(source.mcpServices, policy)
+  const mcp = buildGwsMcpServers(mcpServices)
   const disallowedTools = [
     ...policy.disallowedTools,
     ...expandToolNames(source.disallowedTools),
@@ -139,8 +193,9 @@ function buildSubagentDefinition(
     model: source.model,
     effort: asEffort(source.effort),
     permissionMode: asPermissionMode(source.permissionMode),
-    tools,
+    tools: unique([...tools, ...mcp.allowedTools]),
     disallowedTools,
+    mcpServers: mcp.mcpServers,
   }
 }
 
@@ -159,7 +214,7 @@ export function buildAgentDefinitions(
   }
 
   const used = new Set(Object.keys(agents))
-  for (const source of [...HIDDEN_RUNTIME_AGENTS, ...mongoSubagents]) {
+  for (const source of mongoSubagents) {
     const fallback = `subagent_${used.size}`
     let key = normalizeAgentKey(source.name, fallback)
     let suffix = 2

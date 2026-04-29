@@ -31,7 +31,7 @@ export default function ToolsTab(): React.JSX.Element {
         <div className="pane-head-text">
           <div className="pane-title">Tool registry</div>
           <div className="pane-sub">
-            Toggle individual tools the SDK is allowed to call.{' '}
+            Toggle SDK tools and scoped service access for subagents.{' '}
             {isFallback && (
               <span className="chrome">(fallback list — backend endpoint not yet available)</span>
             )}

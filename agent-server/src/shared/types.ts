@@ -41,6 +41,7 @@ export type SubagentDTO = {
   permissionMode?: string
   tools?: string[]
   disallowedTools?: string[]
+  mcpServices?: Array<'drive' | 'gmail' | 'calendar' | 'sheets' | 'docs' | 'tasks'>
   enabled: boolean
 }
 

@@ -19,11 +19,14 @@
   "type": "module",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.114",
+    "@googleworkspace/cli": "^0.22.5",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^5.1.0",
     "gray-matter": "^4.0.3",
-    "mongoose": "^8.20.0"
+    "mongoose": "^8.20.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

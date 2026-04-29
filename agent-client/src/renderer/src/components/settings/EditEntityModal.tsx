@@ -16,16 +16,20 @@ type Props = {
 
 const MODELS = ['claude-sonnet-4', 'claude-opus-4', 'claude-haiku-4-5'] as const
 
+const GWS_SERVICES = ['drive', 'gmail', 'calendar', 'sheets', 'docs', 'tasks'] as const
+type GwsService = (typeof GWS_SERVICES)[number]
+
 type Draft = {
   name: string
   description: string
   prompt: string
   model: string
   enabled: boolean
+  mcpServices: GwsService[]
 }
 
 function emptyDraft(): Draft {
-  return { name: '', description: '', prompt: '', model: 'claude-sonnet-4', enabled: true }
+  return { name: '', description: '', prompt: '', model: 'claude-sonnet-4', enabled: true, mcpServices: [] }
 }
 
 function fromExisting(kind: Kind, existing: SkillDTO | SubagentDTO | null): Draft {
@@ -38,6 +42,7 @@ function fromExisting(kind: Kind, existing: SkillDTO | SubagentDTO | null): Draf
       prompt: s.body,
       model: 'claude-sonnet-4',
       enabled: s.enabled,
+      mcpServices: [],
     }
   }
   const s = existing as SubagentDTO
@@ -47,7 +52,14 @@ function fromExisting(kind: Kind, existing: SkillDTO | SubagentDTO | null): Draf
     prompt: s.prompt,
     model: s.model ?? 'claude-sonnet-4',
     enabled: s.enabled,
+    mcpServices: Array.isArray(s.mcpServices)
+      ? (s.mcpServices.filter((v): v is GwsService => GWS_SERVICES.includes(v as GwsService)))
+      : [],
   }
+}
+
+function toggleService(current: GwsService[], service: GwsService): GwsService[] {
+  return current.includes(service) ? current.filter((s) => s !== service) : [...current, service]
 }
 
 export default function EditEntityModal({ open, onClose, kind, existing }: Props): React.JSX.Element {
@@ -72,6 +84,7 @@ export default function EditEntityModal({ open, onClose, kind, existing }: Props
       } else {
         body.prompt = draft.prompt
         body.model = draft.model || undefined
+        body.mcpServices = draft.mcpServices
       }
 
       if (existing) {
@@ -150,6 +163,36 @@ export default function EditEntityModal({ open, onClose, kind, existing }: Props
               </option>
             ))}
           </select>
+        </div>
+      )}
+      {kind === 'subagent' && (
+        <div className="field">
+          <label className="field-label">Google Workspace services</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {GWS_SERVICES.map((service) => {
+              const checked = draft.mcpServices.includes(service)
+              return (
+                <label
+                  key={service}
+                  className="chip"
+                  style={{ cursor: 'pointer', userSelect: 'none', opacity: checked ? 1 : 0.7 }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() =>
+                      setDraft((d) => ({ ...d, mcpServices: toggleService(d.mcpServices, service) }))
+                    }
+                    style={{ marginRight: 6 }}
+                  />
+                  {service}
+                </label>
+              )
+            })}
+          </div>
+          <span className="chrome" style={{ display: 'block', marginTop: 6 }}>
+            Attaches the gws MCP wrapper to this subagent. Requires gws auth login on the host.
+          </span>
         </div>
       )}
       <div className="field">

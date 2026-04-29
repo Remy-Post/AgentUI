@@ -12,6 +12,12 @@ const FALLBACK_TOOLS: ToolDTO[] = [
   { id: 'web.search', description: 'Search the web for information.', enabled: true },
   { id: 'git.commit', description: 'Stage and commit changes via git.', enabled: false },
   { id: 'sqlite.query', description: 'Run SQL queries against local SQLite databases.', enabled: false },
+  { id: 'google.workspace.drive', description: 'Allow scoped Google Drive access through AgentUI MCP subagents.', enabled: false },
+  { id: 'google.workspace.gmail', description: 'Allow scoped Gmail access through AgentUI MCP subagents.', enabled: false },
+  { id: 'google.workspace.calendar', description: 'Allow scoped Google Calendar access through AgentUI MCP subagents.', enabled: false },
+  { id: 'google.workspace.sheets', description: 'Allow scoped Google Sheets access through AgentUI MCP subagents.', enabled: false },
+  { id: 'google.workspace.docs', description: 'Allow scoped Google Docs access through AgentUI MCP subagents.', enabled: false },
+  { id: 'google.workspace.tasks', description: 'Allow scoped Google Tasks access through AgentUI MCP subagents.', enabled: false },
 ]
 
 function isMissingEndpoint(error: unknown): boolean {

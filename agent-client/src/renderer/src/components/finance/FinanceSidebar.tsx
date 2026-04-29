@@ -21,7 +21,6 @@ export default function FinanceSidebar({
   const top = (conversationsQuery.data ?? [])
     .slice()
     .sort((a, b) => (b.totalCostUsd ?? 0) - (a.totalCostUsd ?? 0))
-    .slice(0, 12)
 
   const body = (
     <>

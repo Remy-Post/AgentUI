@@ -1,0 +1,440 @@
+import { Subagent, type SubagentDoc } from '../../db/models/Subagent.ts'
+import {
+  GOOGLE_WORKSPACE_SERVICES,
+  type GoogleWorkspaceService,
+  uniqueGoogleWorkspaceServices,
+} from '../../mcp/gwsTypes.ts'
+import { writeSubagentFile } from '../scaffold.ts'
+import type { RuntimeConversation } from './options.ts'
+import type { RuntimeToolPolicy } from './toolPolicy.ts'
+import { AGENT_TOOL_NAME, expandToolNames, filterEnabledSdkTools } from './toolPolicy.ts'
+import type { RuntimeSubagentRecord } from './agents.ts'
+
+type TaskKind = 'research' | 'code' | 'test' | 'web' | 'automation' | 'workspace'
+
+export type DynamicSubagentTask = {
+  kind: TaskKind
+  purpose: string
+  description: string
+  tools: string[]
+  disallowedTools: string[]
+  mcpServices?: GoogleWorkspaceService[]
+  model?: string
+  effort?: string
+  name: string
+  prompt: string
+}
+
+const STOP_WORDS = new Set([
+  'the',
+  'and',
+  'for',
+  'with',
+  'that',
+  'this',
+  'from',
+  'into',
+  'about',
+  'please',
+  'agent',
+  'subagent',
+  'subagents',
+  'current',
+  'implementation',
+])
+
+const KIND_MARKERS: Record<TaskKind, string[]> = {
+  research: ['analyze', 'inspect', 'find', 'search', 'read', 'understand', 'trace', 'where', 'why', 'explain'],
+  code: ['fix', 'implement', 'change', 'edit', 'update', 'add', 'refactor', 'create', 'remove'],
+  test: ['test', 'typecheck', 'build', 'lint', 'verify', 'run'],
+  web: ['web', 'http', 'url', 'fetch', 'latest', 'internet', 'search online'],
+  automation: ['shell', 'command', 'script', 'mongo', 'mongodb', 'database', 'sqlite', 'automation'],
+  workspace: ['google workspace', 'gmail', 'google drive', 'google calendar', 'google sheets', 'google docs', 'google tasks'],
+}
+
+const WORKSPACE_SERVICE_MARKERS: Record<GoogleWorkspaceService, RegExp[]> = {
+  drive: [
+    /\bgoogle\s+drive\b/i,
+    /\bshared\s+drive\b/i,
+    /\bdrive\s+(?:file|folder|document|item|items|search|query)\b/i,
+  ],
+  gmail: [
+    /\bgmail\b/i,
+    /\bemail\b/i,
+    /\binbox\b/i,
+    /\bmailbox\b/i,
+    /\bmail\s+(?:message|thread|search|send|reply)\b/i,
+  ],
+  calendar: [
+    /\bgoogle\s+calendar\b/i,
+    /\bcalendar\b/i,
+    /\bcalendar\s+(?:event|events|invite|invites)\b/i,
+    /\bschedule\s+(?:a\s+)?(?:meeting|event)\b/i,
+  ],
+  sheets: [
+    /\bgoogle\s+sheets?\b/i,
+    /\bspreadsheet(?:s)?\b/i,
+    /\bsheet\s+(?:values|rows|cells|tabs|data)\b/i,
+  ],
+  docs: [
+    /\bgoogle\s+docs?\b/i,
+    /\bgoogle\s+document(?:s)?\b/i,
+    /\bdocs?\s+(?:document|append|write|batchUpdate)\b/i,
+  ],
+  tasks: [
+    /\bgoogle\s+tasks?\b/i,
+    /\btask\s+list(?:s)?\b/i,
+    /\btodo(?:s)?\b/i,
+    /\bto-do(?:s)?\b/i,
+  ],
+}
+
+const WORKSPACE_ACTION_MARKERS = [
+  /\b(?:list|find|search|read|get|show|summarize|summarise|send|reply|create|update|append|write|delete|move|copy|share|schedule|complete)\b/i,
+  /\b(?:google\s+workspace|gmail|google\s+drive|google\s+calendar|google\s+docs?|google\s+sheets?|google\s+tasks?|todo)\b/i,
+]
+
+function unique<T extends string>(values: Iterable<T>): T[] {
+  const out: T[] = []
+  const seen = new Set<T>()
+  for (const value of values) {
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    out.push(value)
+  }
+  return out
+}
+
+function words(value: string): string[] {
+  return value
+    .toLowerCase()
+    .split(/[^a-z0-9._-]+/g)
+    .filter((word) => word.length > 2 && !STOP_WORDS.has(word))
+}
+
+function slugify(value: string): string {
+  const selected = words(value).slice(0, 6)
+  return selected.join('_').replace(/[^a-z0-9._-]+/g, '_') || 'task'
+}
+
+function containsAny(value: string, markers: string[]): boolean {
+  const lower = value.toLowerCase()
+  return markers.some((marker) => lower.includes(marker))
+}
+
+function hasWorkspaceIntent(value: string): boolean {
+  return WORKSPACE_ACTION_MARKERS.some((marker) => marker.test(value))
+}
+
+function detectWorkspaceServices(segment: string, policy: RuntimeToolPolicy): GoogleWorkspaceService[] {
+  if (!hasWorkspaceIntent(segment)) return []
+  const services: GoogleWorkspaceService[] = []
+  for (const service of GOOGLE_WORKSPACE_SERVICES) {
+    if (!policy.enabledWorkspaceServices.has(service)) continue
+    if (WORKSPACE_SERVICE_MARKERS[service].some((marker) => marker.test(segment))) services.push(service)
+  }
+  return uniqueGoogleWorkspaceServices(services)
+}
+
+function stripBullet(value: string): string {
+  return value.replace(/^\s*(?:[-*]|\d+[.)])\s+/, '').trim()
+}
+
+function splitTaskSegments(content: string): string[] {
+  const rawLines = content
+    .split(/\r?\n/g)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+  const lines = rawLines
+    .map(stripBullet)
+    .filter((line) => line.length > 0)
+
+  const bulletLike = rawLines
+    .filter((line) => /^(?:[-*]|\d+[.)])\s+/.test(line))
+    .map(stripBullet)
+  if (bulletLike.length > 1) return bulletLike.slice(0, 6)
+  if (lines.length > 1) return lines.slice(0, 6)
+
+  const semicolonParts = content
+    .split(/[;\n]+/g)
+    .map(stripBullet)
+    .filter((part) => part.length > 18)
+  if (semicolonParts.length > 1) return semicolonParts.slice(0, 6)
+
+  return [content.trim()].filter(Boolean)
+}
+
+function classifyKinds(segment: string): TaskKind[] {
+  const kinds: TaskKind[] = []
+  if (containsAny(segment, KIND_MARKERS.web)) kinds.push('web')
+  if (containsAny(segment, KIND_MARKERS.code)) kinds.push('code')
+  if (containsAny(segment, KIND_MARKERS.test)) kinds.push('test')
+  if (containsAny(segment, KIND_MARKERS.automation)) kinds.push('automation')
+  if (containsAny(segment, KIND_MARKERS.research)) kinds.push('research')
+  return unique(kinds)
+}
+
+function requiredTools(kind: TaskKind, purpose: string): string[] {
+  switch (kind) {
+    case 'code':
+      return /\b(?:new file|create|scaffold|add)\b/i.test(purpose)
+        ? ['Read', 'Grep', 'Glob', 'Edit', 'MultiEdit', 'Write']
+        : ['Read', 'Grep', 'Glob', 'Edit', 'MultiEdit']
+    case 'test':
+      return ['Read', 'Grep', 'Glob', 'Bash']
+    case 'web':
+      return ['WebSearch', 'WebFetch']
+    case 'automation':
+      return containsAny(purpose, KIND_MARKERS.web)
+        ? ['Read', 'Grep', 'Glob', 'Bash', 'WebSearch', 'WebFetch']
+        : ['Read', 'Grep', 'Glob', 'Bash']
+    case 'research':
+    default:
+      return ['Read', 'Grep', 'Glob']
+  }
+}
+
+function serviceLabel(service: GoogleWorkspaceService): string {
+  switch (service) {
+    case 'drive':
+      return 'Google Drive'
+    case 'gmail':
+      return 'Gmail'
+    case 'calendar':
+      return 'Google Calendar'
+    case 'sheets':
+      return 'Google Sheets'
+    case 'docs':
+      return 'Google Docs'
+    case 'tasks':
+      return 'Google Tasks'
+  }
+}
+
+function taskDescription(kind: TaskKind, purpose: string, service?: GoogleWorkspaceService): string {
+  if (kind === 'workspace' && service) {
+    return `Scoped ${serviceLabel(service)} subagent for: ${purpose.slice(0, 140)}`
+  }
+  return `Scoped ${kind} subagent for: ${purpose.slice(0, 140)}`
+}
+
+function taskPrompt(
+  kind: TaskKind,
+  purpose: string,
+  tools: string[],
+  mcpServices: GoogleWorkspaceService[] = [],
+): string {
+  const workspaceLine = mcpServices.length > 0
+    ? `Available Google Workspace services for this task only: ${mcpServices.map(serviceLabel).join(', ')}.`
+    : null
+  return [
+    'You are an AgentUI dynamic subagent.',
+    `Your single purpose is: ${purpose}`,
+    `Task type: ${kind}.`,
+    `Available tools for this task only: ${tools.join(', ') || 'none'}.`,
+    workspaceLine,
+    'Do not solve unrelated issues or broaden the task.',
+    'Use only the minimum context needed.',
+    'Return concise findings, changes, verification, and any blocked/unsafe action.',
+  ].filter((line): line is string => Boolean(line)).join('\n')
+}
+
+function taskModel(kind: TaskKind, conversation: RuntimeConversation): string | undefined {
+  if (kind === 'test') return 'claude-haiku-4-5-20251001'
+  return conversation.model
+}
+
+function taskEffort(kind: TaskKind): string {
+  return kind === 'test' ? 'low' : 'medium'
+}
+
+function buildWorkspaceTask(
+  service: GoogleWorkspaceService,
+  purpose: string,
+  policy: RuntimeToolPolicy,
+  conversation: RuntimeConversation,
+): DynamicSubagentTask | null {
+  if (!policy.enabledWorkspaceServices.has(service)) return null
+
+  const mcpServices = [service]
+  const disallowedTools = unique([...Array.from(policy.enabledSdkTools), AGENT_TOOL_NAME])
+  const slug = slugify(purpose)
+  const name = `agentui_workspace_${service}_${slug}`.slice(0, 80)
+
+  return {
+    kind: 'workspace',
+    purpose,
+    description: taskDescription('workspace', purpose, service),
+    tools: [],
+    disallowedTools,
+    mcpServices,
+    model: conversation.model,
+    effort: 'medium',
+    name,
+    prompt: taskPrompt('workspace', purpose, [], mcpServices),
+  }
+}
+
+function buildTask(kind: TaskKind, purpose: string, policy: RuntimeToolPolicy, conversation: RuntimeConversation): DynamicSubagentTask | null {
+  if (kind === 'workspace') return null
+  const tools = filterEnabledSdkTools(requiredTools(kind, purpose), policy)
+  if (tools.length === 0) return null
+
+  const disallowedTools = unique([
+    ...Array.from(policy.enabledSdkTools).filter((tool) => !tools.includes(tool)),
+    AGENT_TOOL_NAME,
+  ])
+  const slug = slugify(purpose)
+  const name = `agentui_${kind}_${slug}`.slice(0, 80)
+
+  return {
+    kind,
+    purpose,
+    description: taskDescription(kind, purpose),
+    tools,
+    disallowedTools,
+    model: taskModel(kind, conversation),
+    effort: taskEffort(kind),
+    name,
+    prompt: taskPrompt(kind, purpose, tools),
+  }
+}
+
+export function planDynamicSubagentTasks(
+  content: string,
+  policy: RuntimeToolPolicy,
+  conversation: RuntimeConversation,
+): DynamicSubagentTask[] {
+  const tasks: DynamicSubagentTask[] = []
+  const seen = new Set<string>()
+
+  for (const segment of splitTaskSegments(content)) {
+    const workspaceServices = detectWorkspaceServices(segment, policy)
+    if (workspaceServices.length > 0) {
+      for (const service of workspaceServices) {
+        const task = buildWorkspaceTask(service, segment, policy, conversation)
+        if (!task) continue
+        const key = `${task.kind}:${service}:${slugify(task.purpose)}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        tasks.push(task)
+      }
+      continue
+    }
+
+    for (const kind of classifyKinds(segment)) {
+      const task = buildTask(kind, segment, policy, conversation)
+      if (!task) continue
+      const key = `${task.kind}:${slugify(task.purpose)}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      tasks.push(task)
+    }
+  }
+
+  return tasks.slice(0, 6)
+}
+
+function tokenOverlapScore(left: string, right: string): number {
+  const leftWords = new Set(words(left))
+  const rightWords = new Set(words(right))
+  if (leftWords.size === 0 || rightWords.size === 0) return 0
+  let overlap = 0
+  for (const word of leftWords) {
+    if (rightWords.has(word)) overlap += 1
+  }
+  return overlap / Math.min(leftWords.size, rightWords.size)
+}
+
+function hasRequiredTools(candidate: RuntimeSubagentRecord, task: DynamicSubagentTask): boolean {
+  if (task.tools.length === 0) return true
+  const candidateTools = new Set(expandToolNames(candidate.tools))
+  if (candidateTools.size === 0) return false
+  return task.tools.every((tool) => candidateTools.has(tool))
+}
+
+function hasSameMcpServices(candidate: RuntimeSubagentRecord, task: DynamicSubagentTask): boolean {
+  const candidateServices = uniqueGoogleWorkspaceServices(candidate.mcpServices).sort()
+  const taskServices = uniqueGoogleWorkspaceServices(task.mcpServices).sort()
+  if (candidateServices.length !== taskServices.length) return false
+  return taskServices.every((service, index) => candidateServices[index] === service)
+}
+
+function isSuitableSubagent(candidate: RuntimeSubagentRecord, task: DynamicSubagentTask): boolean {
+  if (!hasSameMcpServices(candidate, task)) return false
+  if (!hasRequiredTools(candidate, task)) return false
+  const haystack = `${candidate.name} ${candidate.description} ${candidate.prompt}`
+  if (task.mcpServices?.some((service) => haystack.toLowerCase().includes(service))) return true
+  if (candidate.name === task.name) return true
+  if (candidate.name.startsWith(`agentui_${task.kind}_`) && tokenOverlapScore(haystack, task.purpose) >= 0.25) {
+    return true
+  }
+  return tokenOverlapScore(haystack, `${task.kind} ${task.purpose}`) >= 0.35
+}
+
+function toRuntimeSubagentRecord(doc: SubagentDoc): RuntimeSubagentRecord {
+  return {
+    _id: doc._id,
+    name: doc.name,
+    description: doc.description,
+    prompt: doc.prompt,
+    model: doc.model ?? undefined,
+    effort: doc.effort ?? undefined,
+    permissionMode: doc.permissionMode ?? undefined,
+    tools: doc.tools ?? undefined,
+    disallowedTools: doc.disallowedTools ?? undefined,
+    mcpServices: uniqueGoogleWorkspaceServices(doc.mcpServices),
+  }
+}
+
+async function uniqueDynamicName(baseName: string): Promise<string> {
+  let name = baseName
+  let suffix = 2
+  while (await Subagent.exists({ name })) {
+    name = `${baseName.slice(0, 72)}_${suffix}`
+    suffix += 1
+  }
+  return name
+}
+
+async function createDynamicSubagent(task: DynamicSubagentTask): Promise<RuntimeSubagentRecord> {
+  const name = await uniqueDynamicName(task.name)
+  const doc = await Subagent.create({
+    name,
+    description: task.description,
+    prompt: task.prompt,
+    model: task.model,
+    effort: task.effort,
+    permissionMode: 'dontAsk',
+    tools: task.tools,
+    disallowedTools: task.disallowedTools,
+    mcpServices: task.mcpServices,
+    enabled: true,
+  })
+  await writeSubagentFile(doc)
+  return toRuntimeSubagentRecord(doc)
+}
+
+export async function ensureTurnSubagents(
+  content: string,
+  conversation: RuntimeConversation,
+  candidates: RuntimeSubagentRecord[],
+  policy: RuntimeToolPolicy,
+): Promise<RuntimeSubagentRecord[]> {
+  const tasks = planDynamicSubagentTasks(content, policy, conversation)
+  const selected: RuntimeSubagentRecord[] = []
+
+  for (const task of tasks) {
+    const existing = [...selected, ...candidates].find((candidate) => isSuitableSubagent(candidate, task))
+    if (existing) {
+      selected.push(existing)
+      continue
+    }
+
+    selected.push(await createDynamicSubagent(task))
+  }
+
+  return unique(selected.map((agent) => agent.name))
+    .map((name) => selected.find((agent) => agent.name === name))
+    .filter((agent): agent is RuntimeSubagentRecord => Boolean(agent))
+}

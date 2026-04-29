@@ -28,6 +28,9 @@ function buildSubagentMarkdown(doc: SubagentDoc): string {
   if (Array.isArray(doc.disallowedTools) && doc.disallowedTools.length > 0) {
     front.disallowedTools = doc.disallowedTools.join(', ')
   }
+  if (Array.isArray(doc.mcpServices) && doc.mcpServices.length > 0) {
+    front.mcpServices = doc.mcpServices.join(', ')
+  }
   return matter.stringify(doc.prompt ?? '', front)
 }
 

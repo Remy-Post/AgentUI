@@ -4,7 +4,6 @@ import { apiFetch } from '../lib/api'
 import { useAppVersion } from '../hooks/useAppVersion'
 import { useSettings } from '../hooks/useSettings'
 import { formatRelativeTime, formatUsd } from '../lib/format'
-import BrandMark from './BrandMark'
 import JumpNav from './JumpNav'
 import StatusDot from './StatusDot'
 import type { ConversationDTO } from '@shared/types'
@@ -133,7 +132,6 @@ export default function Sidebar({
     <aside className="sidebar">
       <div className="brand">
         <div className="brand-left">
-          <BrandMark />
           <div>
             <div className="brand-name">Agent Desk</div>
             <div className="chrome">local · v{version || '—'}</div>
@@ -152,17 +150,21 @@ export default function Sidebar({
         )}
       </div>
 
-      {bodySlot
-        ? bodySlot
-        : showRecentList && onSelect && (
-            <ChatSidebarBody selectedId={selectedId} onSelect={onSelect} />
-          )}
+      <div className="sidebar-main">
+        {bodySlot
+          ? bodySlot
+          : showRecentList && onSelect && (
+              <ChatSidebarBody selectedId={selectedId} onSelect={onSelect} />
+            )}
+      </div>
 
-      <JumpNav />
+      <div className="sidebar-bottom">
+        <JumpNav />
 
-      <div className="sidebar-foot">
-        <span className="chrome">{footText}</span>
-        <StatusDot />
+        <div className="sidebar-foot">
+          <span className="chrome">{footText}</span>
+          <StatusDot />
+        </div>
       </div>
     </aside>
   )

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowRight, CornerDownLeft } from 'lucide-react'
+import ContextDisk from './ContextDisk'
 
 type Props = {
   disabled: boolean
@@ -48,18 +49,22 @@ export default function Composer({ disabled, onSubmit }: Props): React.JSX.Eleme
             <span className="chrome">·</span>
             <span className="chrome mono">{value.length} chars</span>
           </div>
-          <button
-            type="button"
-            className="send-btn"
-            onClick={handleSubmit}
-            disabled={disabled || !value.trim()}
-            title="Send"
-          >
-            <ArrowRight size={12} />
-            Send
-          </button>
+          <div className="composer-actions">
+            <ContextDisk />
+            <button
+              type="button"
+              className="send-btn"
+              onClick={handleSubmit}
+              disabled={disabled || !value.trim()}
+              title="Send"
+            >
+              <ArrowRight size={12} />
+              Send
+            </button>
+          </div>
         </div>
       </div>
     </div>
   )
 }
+

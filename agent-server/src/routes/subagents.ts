@@ -49,6 +49,7 @@ const SUBAGENT_PATCH_FIELDS = [
   'permissionMode',
   'tools',
   'disallowedTools',
+  'mcpServices',
   'enabled',
 ] as const
 

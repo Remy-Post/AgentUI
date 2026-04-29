@@ -4,8 +4,10 @@ import { protectSensitiveFiles } from '../../../util/hooks.ts'
 import { Skill } from '../../db/models/Skill.ts'
 import { Subagent } from '../../db/models/Subagent.ts'
 import { Tool } from '../../db/models/Tool.ts'
+import { uniqueGoogleWorkspaceServices } from '../../mcp/gwsTypes.ts'
 import { ensureToolRegistrySeeded } from './defaultTools.ts'
 import { buildAgentDefinitions, ORCHESTRATOR_AGENT_NAME, type RuntimeSubagentRecord } from './agents.ts'
+import { ensureTurnSubagents } from './dynamicSubagents.ts'
 import { makeToolPermissionPolicy, resolveToolPolicy, type ToolRecord } from './toolPolicy.ts'
 
 export type RuntimeConversation = {
@@ -64,6 +66,11 @@ export async function loadRuntimeConfig(conversation: RuntimeConversation): Prom
         disallowedTools: Array.isArray(subagent.disallowedTools)
           ? subagent.disallowedTools.filter((tool): tool is string => typeof tool === 'string')
           : undefined,
+        mcpServices: Array.isArray(subagent.mcpServices)
+          ? uniqueGoogleWorkspaceServices(
+            subagent.mcpServices.filter((service): service is string => typeof service === 'string'),
+          )
+          : undefined,
       })),
       conversation.attachedSubagentIds,
     ),
@@ -110,6 +117,9 @@ export function buildQueryOptionsFromRuntime(
   }
 }
 
-export async function buildQueryOptions(conversation: RuntimeConversation): Promise<Options> {
-  return buildQueryOptionsFromRuntime(conversation, await loadRuntimeConfig(conversation))
+export async function buildQueryOptions(conversation: RuntimeConversation, content: string): Promise<Options> {
+  const runtime = await loadRuntimeConfig(conversation)
+  const policy = resolveToolPolicy(runtime.tools)
+  const subagents = await ensureTurnSubagents(content, conversation, runtime.subagents, policy)
+  return buildQueryOptionsFromRuntime(conversation, { ...runtime, subagents })
 }
