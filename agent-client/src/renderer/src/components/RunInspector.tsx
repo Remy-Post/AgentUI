@@ -35,14 +35,29 @@ export default function RunInspector({
   messages,
   width,
   onWidthChange,
-  frameRef,
+  frameRef
 }: Props): React.JSX.Element {
   const streaming = useStreamingStore()
   const isStreamingHere = streaming.active && streaming.conversationId === conversationId
 
   const turns = useMemo(
     () => messages.filter((m) => m.role === 'user' || m.role === 'assistant').length,
-    [messages],
+    [messages]
+  )
+
+  const inputTokens = useMemo(
+    () =>
+      messages.reduce((acc, m) => acc + (typeof m.inputTokens === 'number' ? m.inputTokens : 0), 0),
+    [messages]
+  )
+
+  const outputTokens = useMemo(
+    () =>
+      messages.reduce(
+        (acc, m) => acc + (typeof m.outputTokens === 'number' ? m.outputTokens : 0),
+        0
+      ),
+    [messages]
   )
 
   const combinedTools = useMemo(() => {
@@ -92,13 +107,11 @@ export default function RunInspector({
           </div>
           <div>
             <div className="cap">in tokens</div>
-            {/* TODO: wire to real telemetry */}
-            <div className="rail-stat-value">—</div>
+            <div className="rail-stat-value">{inputTokens.toLocaleString()}</div>
           </div>
           <div>
             <div className="cap">out tokens</div>
-            {/* TODO: wire to real telemetry */}
-            <div className="rail-stat-value">—</div>
+            <div className="rail-stat-value">{outputTokens.toLocaleString()}</div>
           </div>
           <div>
             <div className="cap">tool calls</div>
@@ -147,7 +160,7 @@ export default function RunInspector({
         <div className="cap">Active subagent</div>
         {/* TODO: wire when subagent invocation is exposed by streaming events */}
         <div className="mono" style={{ fontSize: 12, marginTop: 6, color: 'var(--color-ink-3)' }}>
-          — none —
+          none
         </div>
       </div>
     </>

@@ -14,7 +14,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (!origin) throw new Error('server_not_ready')
   const res = await fetch(`${origin}${path}`, {
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-    ...init,
+    ...init
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')

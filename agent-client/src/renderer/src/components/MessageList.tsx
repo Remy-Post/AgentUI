@@ -39,14 +39,12 @@ function renderContent(message: MessageDTO): React.ReactNode {
   )
 }
 
-export default function MessageList({ conversationId, messages, modelLabel }: Props): React.JSX.Element {
-  const {
-    active,
-    buffer,
-    toolEvents,
-    conversationId: streamingId,
-    error,
-  } = useStreamingStore()
+export default function MessageList({
+  conversationId,
+  messages,
+  modelLabel
+}: Props): React.JSX.Element {
+  const { active, buffer, toolEvents, conversationId: streamingId, error } = useStreamingStore()
   const showStreaming = active && streamingId === conversationId
 
   return (
@@ -99,7 +97,9 @@ export default function MessageList({ conversationId, messages, modelLabel }: Pr
                   <div className="bubble-foot">
                     <span className="model-tag">
                       {modelLabel ?? 'claude'}
-                      {typeof m.costUsd === 'number' && m.costUsd > 0 ? ` · ${formatUsd(m.costUsd)}` : ''}
+                      {typeof m.costUsd === 'number' && m.costUsd > 0
+                        ? ` · ${formatUsd(m.costUsd)}`
+                        : ''}
                     </span>
                   </div>
                 )}

@@ -8,7 +8,7 @@ type Effort = 'low' | 'medium' | 'high'
 const OPTIONS: Array<{ id: Effort; label: string }> = [
   { id: 'low', label: 'Low — quick replies' },
   { id: 'medium', label: 'Medium — balanced' },
-  { id: 'high', label: 'High — deep work' },
+  { id: 'high', label: 'High — deep work' }
 ]
 
 type Props = {
@@ -25,7 +25,7 @@ export default function EffortPopover({ conversation }: Props): React.JSX.Elemen
     mutationFn: (effort: Effort) =>
       apiFetch<ConversationDTO>(`/api/sessions/${conversation._id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ effort }),
+        body: JSON.stringify({ effort })
       }),
     onMutate: async (effort) => {
       await queryClient.cancelQueries({ queryKey: ['conversations'] })
@@ -33,7 +33,7 @@ export default function EffortPopover({ conversation }: Props): React.JSX.Elemen
       if (previous) {
         queryClient.setQueryData<ConversationDTO[]>(
           ['conversations'],
-          previous.map((c) => (c._id === conversation._id ? { ...c, effort } : c)),
+          previous.map((c) => (c._id === conversation._id ? { ...c, effort } : c))
         )
       }
       return { previous }
@@ -43,7 +43,7 @@ export default function EffortPopover({ conversation }: Props): React.JSX.Elemen
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['conversations'] })
-    },
+    }
   })
 
   useEffect(() => {
@@ -70,7 +70,12 @@ export default function EffortPopover({ conversation }: Props): React.JSX.Elemen
 
   return (
     <div ref={wrapRef} style={{ position: 'relative' }}>
-      <button type="button" className="chip button" onClick={() => setOpen((s) => !s)} aria-pressed={open}>
+      <button
+        type="button"
+        className="chip button"
+        onClick={() => setOpen((s) => !s)}
+        aria-pressed={open}
+      >
         Effort · {current}
       </button>
       {open && (

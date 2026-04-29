@@ -1,5 +1,9 @@
 import { query } from '@anthropic-ai/claude-agent-sdk'
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
+import type {
+  SDKAssistantMessage,
+  SDKMessage,
+  SDKResultMessage,
+} from '@anthropic-ai/claude-agent-sdk'
 import { syncFromDb } from '../scaffold.ts'
 import { Message } from '../../db/models/Message.ts'
 import { Conversation } from '../../db/models/Conversation.ts'
@@ -7,6 +11,7 @@ import type { SSEHandle } from '../sse.ts'
 import type { RuntimeConversation } from './options.ts'
 import { buildQueryOptions } from './options.ts'
 import { extractAssistantText, extractSessionId, normalizeSdkMessage } from './events.ts'
+import { buildTurnUsageBulkOps, type TurnUsageEntry } from './turnUsage.ts'
 
 export type RunConversationTurnInput = {
   conversationId: string
@@ -18,6 +23,10 @@ export type RunConversationTurnInput = {
 
 export type RunConversationTurnResult = {
   totalCostUsd?: number
+  totalInputTokens?: number
+  totalOutputTokens?: number
+  totalCacheCreationInputTokens?: number
+  totalCacheReadInputTokens?: number
 }
 
 async function persistSdkSessionIdOnce(
@@ -33,6 +42,45 @@ async function persistSdkSessionIdOnce(
   await Conversation.updateOne({ _id: conversationId }, { $set: { sdkSessionId: sessionId } })
 }
 
+function nz(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+type AssistantPersistResult = {
+  entry?: TurnUsageEntry
+}
+
+async function persistAssistantMessage(
+  conversationId: string,
+  message: SDKAssistantMessage,
+): Promise<AssistantPersistResult> {
+  const text = extractAssistantText(message)
+  if (!text) return {}
+
+  const inner = message.message
+  const usage = inner?.usage
+  const isTopLevel = message.parent_tool_use_id == null
+  const model = typeof inner?.model === 'string' ? inner.model : undefined
+
+  const doc: Record<string, unknown> = { conversationId, role: 'assistant', content: text }
+
+  if (isTopLevel) {
+    if (typeof model === 'string') doc.model = model
+    if (usage) {
+      doc.inputTokens = nz(usage.input_tokens)
+      doc.outputTokens = nz(usage.output_tokens)
+      doc.cacheCreationInputTokens = nz(usage.cache_creation_input_tokens)
+      doc.cacheReadInputTokens = nz(usage.cache_read_input_tokens)
+    }
+  }
+
+  const created = await Message.create(doc)
+
+  if (!isTopLevel) return {}
+  const tokens = nz(usage?.input_tokens) + nz(usage?.output_tokens)
+  return { entry: { id: created._id, tokens } }
+}
+
 export async function runConversationTurn({
   conversationId,
   content,
@@ -43,7 +91,12 @@ export async function runConversationTurn({
   await syncFromDb()
   const options = await buildQueryOptions(conversation, content)
   const stream = query({ prompt: content, options })
+  const turnEntries: TurnUsageEntry[] = []
   let totalCostUsd: number | undefined
+  let totalInputTokens: number | undefined
+  let totalOutputTokens: number | undefined
+  let totalCacheCreationInputTokens: number | undefined
+  let totalCacheReadInputTokens: number | undefined
 
   try {
     for await (const message of stream) {
@@ -56,21 +109,29 @@ export async function runConversationTurn({
 
       switch (event.name) {
         case 'assistant': {
-          const text = extractAssistantText(message)
-          if (text) {
-            await Message.create({ conversationId, role: 'assistant', content: text })
+          if (message.type === 'assistant') {
+            const { entry } = await persistAssistantMessage(conversationId, message)
+            if (entry) turnEntries.push(entry)
           }
           sse.write('assistant', event.data)
           break
         }
         case 'result': {
-          const cost = (event.data as { total_cost_usd?: unknown }).total_cost_usd
-          if (typeof cost === 'number') {
-            totalCostUsd = cost
-            await Message.updateMany(
-              { conversationId, role: 'assistant', costUsd: { $exists: false } },
-              { $set: { costUsd: cost } },
-            )
+          if (message.type === 'result') {
+            const result = message as SDKResultMessage
+            const cost = result.total_cost_usd
+            if (typeof cost === 'number' && Number.isFinite(cost)) {
+              totalCostUsd = cost
+              const ops = buildTurnUsageBulkOps(turnEntries, cost)
+              if (ops.length > 0) await Message.bulkWrite(ops, { ordered: false })
+            }
+            const usage = result.usage
+            if (usage) {
+              totalInputTokens = nz(usage.input_tokens)
+              totalOutputTokens = nz(usage.output_tokens)
+              totalCacheCreationInputTokens = nz(usage.cache_creation_input_tokens)
+              totalCacheReadInputTokens = nz(usage.cache_read_input_tokens)
+            }
           }
           sse.write('result', event.data)
           break
@@ -98,5 +159,11 @@ export async function runConversationTurn({
     stream.close()
   }
 
-  return { totalCostUsd }
+  return {
+    totalCostUsd,
+    totalInputTokens,
+    totalOutputTokens,
+    totalCacheCreationInputTokens,
+    totalCacheReadInputTokens,
+  }
 }

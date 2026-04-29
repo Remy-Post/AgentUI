@@ -13,6 +13,7 @@ import skillsRouter from './routes/skills.ts'
 import subagentsRouter from './routes/subagents.ts'
 import settingsRouter from './routes/settings.ts'
 import toolsRouter from './routes/tools.ts'
+import usageRouter from './routes/usage.ts'
 
 const app = express()
 
@@ -43,6 +44,7 @@ app.use('/api/skills', skillsRouter)
 app.use('/api/subagents', subagentsRouter)
 app.use('/api/settings', settingsRouter)
 app.use('/api/tools', toolsRouter)
+app.use('/api/usage', usageRouter)
 
 const DEFAULT_DEV_PORT = 3001
 const desiredPort = process.parentPort ? 0 : Number(process.env.AGENT_SERVER_PORT ?? DEFAULT_DEV_PORT)

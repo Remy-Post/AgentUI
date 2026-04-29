@@ -5,7 +5,7 @@ const CONFIG_KEY = (key: string): readonly ['config', string] => ['config', key]
 
 export function useConfig<T>(
   key: string,
-  defaultValue: T,
+  defaultValue: T
 ): { value: T; setValue: (next: T) => void; isReady: boolean } {
   const queryClient = useQueryClient()
   const query = useQuery({
@@ -14,7 +14,7 @@ export function useConfig<T>(
       const raw = await window.api.getConfig(key)
       return raw === null || raw === undefined ? defaultValue : raw
     },
-    staleTime: Infinity,
+    staleTime: Infinity
   })
 
   const setValue = useCallback(
@@ -22,7 +22,7 @@ export function useConfig<T>(
       queryClient.setQueryData(CONFIG_KEY(key), next)
       void window.api.setConfig(key, next)
     },
-    [key, queryClient],
+    [key, queryClient]
   )
 
   const value = (query.data as T | undefined) ?? defaultValue

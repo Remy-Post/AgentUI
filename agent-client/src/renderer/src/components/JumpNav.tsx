@@ -4,7 +4,7 @@ import { useViewStore, type View } from '../store/view'
 const TABS: Array<{ id: View; label: string; icon: typeof MessageSquare; key: string }> = [
   { id: 'chat', label: 'Chat', icon: MessageSquare, key: '1' },
   { id: 'finance', label: 'Finance', icon: DollarSign, key: '2' },
-  { id: 'settings', label: 'Settings', icon: SettingsIcon, key: '3' },
+  { id: 'settings', label: 'Settings', icon: SettingsIcon, key: '3' }
 ]
 
 export default function JumpNav(): React.JSX.Element {

@@ -114,7 +114,6 @@
 .sidebar-bottom {
   flex: 0 0 auto;
   background: var(--color-paper-2);
-  border-top: 1px solid var(--color-line);
 }
 .brand { display: flex; align-items: center; justify-content: space-between; padding: 20px 16px 16px; gap: 8px; }
 .brand-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -157,6 +156,7 @@
 .frame.side-collapsed .conv-row .chrome,
 .frame.side-collapsed .conv-meta,
 .frame.side-collapsed .sidebar-foot .chrome:not(.status-dot),
+.frame.side-collapsed .status-label,
 .frame.side-collapsed .jump-tab .jump-label,
 .frame.side-collapsed .jump-tab .kbd { display: none; }
 .frame.side-collapsed .new-conv {
@@ -170,19 +170,24 @@
   grid-template-columns: 1fr; gap: 0;
   justify-items: center; padding: 10px 0;
 }
-.frame.side-collapsed .conv-item > div:last-child { display: none; }
+.frame.side-collapsed .conv-item > div:not(.dot),
+.frame.side-collapsed .conv-item .delete-btn { display: none !important; }
 .frame.side-collapsed .conv-item .dot { width: 8px; height: 8px; margin: 0; }
 .frame.side-collapsed .sidebar-foot { justify-content: center; padding: 12px 0; }
 .frame.side-collapsed .jump-nav {
   margin: 0 10px 10px;
   padding: 4px;
   flex-direction: column;
+  width: calc(100% - 20px);
+  align-items: center;
+  border-radius: 34px;
 }
 .frame.side-collapsed .jump-tab {
   width: 34px;
   height: 34px;
   justify-content: center;
   padding: 0;
+  flex: 0 0 auto;
 }
 
 .new-conv {
@@ -519,7 +524,10 @@
 .settings-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
 .settings-tabs {
   background: var(--color-paper); border-bottom: 1px solid var(--color-line);
-  padding: 0 16px; display: flex; gap: 4px; overflow-x: auto;
+  padding: 0 16px; display: flex; justify-content: space-between; gap: 4px; overflow-x: auto;
+}
+.settings-tabs-group {
+  display: flex; gap: 4px;
 }
 .settings-tab {
   padding: 10px 16px; font-family: var(--font-mono); font-size: 12px;

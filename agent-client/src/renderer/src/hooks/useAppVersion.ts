@@ -4,7 +4,7 @@ export function useAppVersion(): string {
   const { data } = useQuery({
     queryKey: ['app-version'],
     queryFn: () => window.api.getAppVersion(),
-    staleTime: Infinity,
+    staleTime: Infinity
   })
   return data ?? ''
 }

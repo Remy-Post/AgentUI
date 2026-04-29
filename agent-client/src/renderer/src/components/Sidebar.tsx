@@ -8,7 +8,12 @@ import JumpNav from './JumpNav'
 import StatusDot from './StatusDot'
 import type { ConversationDTO } from '@shared/types'
 
-export type SidebarMode = 'chat' | 'finance' | 'settings-default' | 'settings-skills' | 'settings-subagents'
+export type SidebarMode =
+  | 'chat'
+  | 'finance'
+  | 'settings-default'
+  | 'settings-skills'
+  | 'settings-subagents'
 
 type Props = {
   mode?: SidebarMode
@@ -24,7 +29,7 @@ type Props = {
 
 function ChatSidebarBody({
   selectedId,
-  onSelect,
+  onSelect
 }: {
   selectedId: string | null
   onSelect: (id: string) => void
@@ -32,22 +37,22 @@ function ChatSidebarBody({
   const queryClient = useQueryClient()
   const conversationsQuery = useQuery({
     queryKey: ['conversations'],
-    queryFn: () => apiFetch<ConversationDTO[]>('/api/sessions'),
+    queryFn: () => apiFetch<ConversationDTO[]>('/api/sessions')
   })
   const createMutation = useMutation({
     mutationFn: () =>
       apiFetch<ConversationDTO>('/api/sessions', {
         method: 'POST',
-        body: JSON.stringify({ title: 'New conversation' }),
+        body: JSON.stringify({ title: 'New conversation' })
       }),
     onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ['conversations'] })
       onSelect(created._id)
-    },
+    }
   })
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiFetch<void>(`/api/sessions/${id}`, { method: 'DELETE' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['conversations'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['conversations'] })
   })
 
   return (
@@ -119,7 +124,7 @@ export default function Sidebar({
   onSelect,
   onToggleCollapsed,
   bodySlot,
-  footLabel,
+  footLabel
 }: Props): React.JSX.Element {
   const version = useAppVersion()
   const { data: settings } = useSettings()
@@ -153,9 +158,8 @@ export default function Sidebar({
       <div className="sidebar-main">
         {bodySlot
           ? bodySlot
-          : showRecentList && onSelect && (
-              <ChatSidebarBody selectedId={selectedId} onSelect={onSelect} />
-            )}
+          : showRecentList &&
+            onSelect && <ChatSidebarBody selectedId={selectedId} onSelect={onSelect} />}
       </div>
 
       <div className="sidebar-bottom">

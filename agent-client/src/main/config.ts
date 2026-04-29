@@ -28,7 +28,9 @@ async function readConfig(): Promise<ConfigBlob> {
   }
 }
 
-async function writeConfig(next: ConfigBlob): Promise<{ ok: true } | { ok: false; reason: string }> {
+async function writeConfig(
+  next: ConfigBlob
+): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!safeStorage.isEncryptionAvailable()) {
     return { ok: false, reason: 'encryption_unavailable' }
   }
@@ -50,7 +52,10 @@ export async function getConfig(key: string): Promise<unknown> {
   return value === undefined ? null : value
 }
 
-export async function setConfig(key: string, value: unknown): Promise<{ ok: true } | { ok: false; reason: string }> {
+export async function setConfig(
+  key: string,
+  value: unknown
+): Promise<{ ok: true } | { ok: false; reason: string }> {
   const current = await readConfig()
   return writeConfig({ ...current, [key]: value })
 }

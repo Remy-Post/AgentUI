@@ -19,7 +19,9 @@ export async function readSecrets(): Promise<SecretsBlob> {
   }
 }
 
-export async function writeSecrets(next: SecretsBlob): Promise<{ ok: true } | { ok: false; reason: string }> {
+export async function writeSecrets(
+  next: SecretsBlob
+): Promise<{ ok: true } | { ok: false; reason: string }> {
   if (!safeStorage.isEncryptionAvailable()) {
     return { ok: false, reason: 'encryption_unavailable' }
   }
@@ -34,7 +36,9 @@ export async function writeSecrets(next: SecretsBlob): Promise<{ ok: true } | { 
   }
 }
 
-export async function setApiKey(key: string): Promise<{ ok: true } | { ok: false; reason: string }> {
+export async function setApiKey(
+  key: string
+): Promise<{ ok: true } | { ok: false; reason: string }> {
   const current = await readSecrets()
   return writeSecrets({ ...current, ANTHROPIC_API_KEY: key })
 }

@@ -4,16 +4,25 @@ import ModelTab from './ModelTab'
 import SubagentsTab from './SubagentsTab'
 import SkillsTab from './SkillsTab'
 import ToolsTab from './ToolsTab'
+import ConversationsTab from './ConversationsTab'
 
-const TABS: Array<{ id: SettingsTab; label: string }> = [
-  { id: 'api', label: 'API key' },
+const LEFT_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'model', label: 'Model' },
-  { id: 'subagents', label: 'Subagents' },
   { id: 'skills', label: 'Skills' },
-  { id: 'tools', label: 'Tools' },
+  { id: 'subagents', label: 'Subagents' }
 ]
 
-export default function SettingsView(): React.JSX.Element {
+const RIGHT_TABS: Array<{ id: SettingsTab; label: string }> = [
+  { id: 'tools', label: 'Tools' },
+  { id: 'api', label: 'API key' },
+  { id: 'conversations', label: 'All conversations' }
+]
+
+type Props = {
+  onSelectConversation: (id: string) => void
+}
+
+export default function SettingsView({ onSelectConversation }: Props): React.JSX.Element {
   const settingsTab = useViewStore((s) => s.settingsTab)
   const setSettingsTab = useViewStore((s) => s.setSettingsTab)
 
@@ -23,16 +32,30 @@ export default function SettingsView(): React.JSX.Element {
         <div className="settings-title">Settings</div>
       </header>
       <nav className="settings-tabs">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={`settings-tab ${settingsTab === t.id ? 'active' : ''}`}
-            onClick={() => setSettingsTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
+        <div className="settings-tabs-group">
+          {LEFT_TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={`settings-tab ${settingsTab === t.id ? 'active' : ''}`}
+              onClick={() => setSettingsTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="settings-tabs-group">
+          {RIGHT_TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={`settings-tab ${settingsTab === t.id ? 'active' : ''}`}
+              onClick={() => setSettingsTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </nav>
       <div className="settings-body">
         {settingsTab === 'api' && <ApiKeyTab />}
@@ -40,6 +63,9 @@ export default function SettingsView(): React.JSX.Element {
         {settingsTab === 'subagents' && <SubagentsTab />}
         {settingsTab === 'skills' && <SkillsTab />}
         {settingsTab === 'tools' && <ToolsTab />}
+        {settingsTab === 'conversations' && (
+          <ConversationsTab onSelectConversation={onSelectConversation} />
+        )}
       </div>
     </section>
   )

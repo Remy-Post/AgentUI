@@ -15,7 +15,7 @@ export default function ChatHeader({
   conversation,
   messages,
   inspectorOpen,
-  onToggleInspector,
+  onToggleInspector
 }: Props): React.JSX.Element {
   return (
     <header className="chat-header">

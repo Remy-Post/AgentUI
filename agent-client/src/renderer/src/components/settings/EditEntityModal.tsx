@@ -29,7 +29,14 @@ type Draft = {
 }
 
 function emptyDraft(): Draft {
-  return { name: '', description: '', prompt: '', model: 'claude-sonnet-4', enabled: true, mcpServices: [] }
+  return {
+    name: '',
+    description: '',
+    prompt: '',
+    model: 'claude-sonnet-4',
+    enabled: true,
+    mcpServices: []
+  }
 }
 
 function fromExisting(kind: Kind, existing: SkillDTO | SubagentDTO | null): Draft {
@@ -42,7 +49,7 @@ function fromExisting(kind: Kind, existing: SkillDTO | SubagentDTO | null): Draf
       prompt: s.body,
       model: 'claude-sonnet-4',
       enabled: s.enabled,
-      mcpServices: [],
+      mcpServices: []
     }
   }
   const s = existing as SubagentDTO
@@ -53,8 +60,8 @@ function fromExisting(kind: Kind, existing: SkillDTO | SubagentDTO | null): Draf
     model: s.model ?? 'claude-sonnet-4',
     enabled: s.enabled,
     mcpServices: Array.isArray(s.mcpServices)
-      ? (s.mcpServices.filter((v): v is GwsService => GWS_SERVICES.includes(v as GwsService)))
-      : [],
+      ? s.mcpServices.filter((v): v is GwsService => GWS_SERVICES.includes(v as GwsService))
+      : []
   }
 }
 
@@ -62,7 +69,12 @@ function toggleService(current: GwsService[], service: GwsService): GwsService[]
   return current.includes(service) ? current.filter((s) => s !== service) : [...current, service]
 }
 
-export default function EditEntityModal({ open, onClose, kind, existing }: Props): React.JSX.Element {
+export default function EditEntityModal({
+  open,
+  onClose,
+  kind,
+  existing
+}: Props): React.JSX.Element {
   const [draft, setDraft] = useState<Draft>(() => fromExisting(kind, existing))
   const queryClient = useQueryClient()
   const queryKey = kind === 'skill' ? 'skills' : 'subagents'
@@ -77,7 +89,7 @@ export default function EditEntityModal({ open, onClose, kind, existing }: Props
       const body: Record<string, unknown> = {
         name: draft.name,
         description: draft.description,
-        enabled: draft.enabled,
+        enabled: draft.enabled
       }
       if (kind === 'skill') {
         body.body = draft.prompt
@@ -95,10 +107,11 @@ export default function EditEntityModal({ open, onClose, kind, existing }: Props
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [queryKey] })
       onClose()
-    },
+    }
   })
 
-  const isValid = draft.name.trim() && draft.description.trim() && (kind === 'skill' || draft.prompt.trim())
+  const isValid =
+    draft.name.trim() && draft.description.trim() && (kind === 'skill' || draft.prompt.trim())
   const title = existing ? `Edit ${kind}` : `New ${kind}`
 
   return (
@@ -181,7 +194,10 @@ export default function EditEntityModal({ open, onClose, kind, existing }: Props
                     type="checkbox"
                     checked={checked}
                     onChange={() =>
-                      setDraft((d) => ({ ...d, mcpServices: toggleService(d.mcpServices, service) }))
+                      setDraft((d) => ({
+                        ...d,
+                        mcpServices: toggleService(d.mcpServices, service)
+                      }))
                     }
                     style={{ marginRight: 6 }}
                   />

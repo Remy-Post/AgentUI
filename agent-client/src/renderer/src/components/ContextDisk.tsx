@@ -15,7 +15,7 @@ export default function ContextDisk({
   systemTokens = 8420,
   messageTokens = 86300,
   toolTokens = 12100,
-  fileTokens = 17180,
+  fileTokens = 17180
 }: Props): React.JSX.Element {
   const p = Math.max(0, Math.min(100, (usedTokens / totalTokens) * 100))
   const C = 2 * Math.PI * 9
@@ -64,34 +64,49 @@ export default function ContextDisk({
         </div>
         <div className="pop-total">
           <span>{fmt(usedTokens)}</span>
-          <span className="pop-of">/ <span>{fmt(totalTokens)}</span> tokens</span>
+          <span className="pop-of">
+            / <span>{fmt(totalTokens)}</span> tokens
+          </span>
         </div>
         <div className="pop-bar">
           <span style={{ width: `${p}%` }}></span>
         </div>
         <div className="pop-list">
-          <span className="lbl" style={{ '--swatch': 'oklch(70% 0.04 260)' } as React.CSSProperties}>
+          <span
+            className="lbl"
+            style={{ '--swatch': 'oklch(70% 0.04 260)' } as React.CSSProperties}
+          >
             System prompt
           </span>
           <span className="val">{fmt(systemTokens)}</span>
 
-          <span className="lbl" style={{ '--swatch': 'oklch(72% 0.06 240)' } as React.CSSProperties}>
+          <span
+            className="lbl"
+            style={{ '--swatch': 'oklch(72% 0.06 240)' } as React.CSSProperties}
+          >
             Messages
           </span>
           <span className="val">{fmt(messageTokens)}</span>
 
-          <span className="lbl" style={{ '--swatch': 'oklch(74% 0.08 200)' } as React.CSSProperties}>
+          <span
+            className="lbl"
+            style={{ '--swatch': 'oklch(74% 0.08 200)' } as React.CSSProperties}
+          >
             Tools
           </span>
           <span className="val">{fmt(toolTokens)}</span>
 
-          <span className="lbl" style={{ '--swatch': 'oklch(76% 0.10 160)' } as React.CSSProperties}>
+          <span
+            className="lbl"
+            style={{ '--swatch': 'oklch(76% 0.10 160)' } as React.CSSProperties}
+          >
             Files &amp; context
           </span>
           <span className="val">{fmt(fileTokens)}</span>
         </div>
         <div className="pop-foot">
-          <strong>$0.62</strong> spent so far &middot; <strong>14</strong> messages in window &middot; auto-compacts at <strong>93%</strong>
+          <strong>$0.62</strong> spent so far &middot; <strong>14</strong> messages in window
+          &middot; auto-compacts at <strong>93%</strong>
         </div>
       </div>
     </div>

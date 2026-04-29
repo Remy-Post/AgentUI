@@ -21,7 +21,7 @@ const startedFormatter = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
   hour12: false,
   day: '2-digit',
-  month: 'short',
+  month: 'short'
 })
 
 export function formatStartedAt(input: string | Date): string {

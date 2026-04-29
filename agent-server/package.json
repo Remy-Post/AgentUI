@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.server.json",
     "build:all": "tsc",
-    "test": "tsx --test src/agent/orchestration/*.test.ts",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "start": "node dist/src/server.js",
     "start:cli": "node dist/src/main.js"
   },

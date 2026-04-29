@@ -13,7 +13,13 @@ type Props = {
 const FOCUSABLE_SELECTOR =
   'button, [href], input:not([type="hidden"]), textarea, select, [tabindex]:not([tabindex="-1"])'
 
-export default function Modal({ open, onClose, title, children, footer }: Props): React.JSX.Element | null {
+export default function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  footer
+}: Props): React.JSX.Element | null {
   const modalRef = useRef<HTMLDivElement>(null)
   const previousFocusRef = useRef<HTMLElement | null>(null)
 
@@ -34,7 +40,7 @@ export default function Modal({ open, onClose, title, children, footer }: Props)
       }
       if (e.key === 'Tab' && root) {
         const elements = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-          (el) => !el.hasAttribute('disabled'),
+          (el) => !el.hasAttribute('disabled')
         )
         if (elements.length === 0) return
         const first = elements[0]
@@ -60,7 +66,13 @@ export default function Modal({ open, onClose, title, children, footer }: Props)
 
   const node = (
     <div className="modal-wrap" onClick={onClose} role="presentation">
-      <div className="modal" ref={modalRef} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+      <div
+        className="modal"
+        ref={modalRef}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
         <div className="modal-head">
           <div className="modal-title">{title}</div>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">

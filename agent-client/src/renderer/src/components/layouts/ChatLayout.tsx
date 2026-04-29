@@ -14,10 +14,13 @@ type Props = {
 
 export default function ChatLayout({
   selectedConversationId,
-  onSelectConversation,
+  onSelectConversation
 }: Props): React.JSX.Element {
   const frameRef = useRef<HTMLDivElement>(null)
-  const { value: collapsed, setValue: setCollapsed } = useConfig<boolean>('sidebar.collapsed', false)
+  const { value: collapsed, setValue: setCollapsed } = useConfig<boolean>(
+    'sidebar.collapsed',
+    false
+  )
   const { value: railOpen, setValue: setRailOpen } = useConfig<boolean>('inspector.open', true)
   const { value: railWidth, setValue: setRailWidth } = useConfig<number>('inspector.width', 320)
 
@@ -27,7 +30,7 @@ export default function ChatLayout({
       if (!selectedConversationId) return [] as MessageDTO[]
       return apiFetch<MessageDTO[]>(`/api/sessions/${selectedConversationId}/messages`)
     },
-    enabled: !!selectedConversationId,
+    enabled: !!selectedConversationId
   })
 
   const frameClass = ['frame', collapsed ? 'side-collapsed' : '', railOpen ? '' : 'rail-closed']

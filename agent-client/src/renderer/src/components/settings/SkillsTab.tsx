@@ -9,11 +9,11 @@ export default function SkillsTab(): React.JSX.Element {
   const queryClient = useQueryClient()
   const list = useQuery({
     queryKey: ['skills'],
-    queryFn: () => apiFetch<SkillDTO[]>('/api/skills'),
+    queryFn: () => apiFetch<SkillDTO[]>('/api/skills')
   })
   const remove = useMutation({
     mutationFn: (id: string) => apiFetch<void>(`/api/skills/${id}`, { method: 'DELETE' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['skills'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['skills'] })
   })
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -34,7 +34,8 @@ export default function SkillsTab(): React.JSX.Element {
         <div className="pane-head-text">
           <div className="pane-title">Skills</div>
           <div className="pane-sub">
-            Materialized to <span className="mono">.claude/skills/&lt;name&gt;/SKILL.md</span> when enabled.
+            Materialized to <span className="mono">.claude/skills/&lt;name&gt;/SKILL.md</span> when
+            enabled.
           </div>
         </div>
         <button type="button" className="btn-primary" onClick={openCreate}>
@@ -86,7 +87,12 @@ export default function SkillsTab(): React.JSX.Element {
         )}
       </div>
 
-      <EditEntityModal open={modalOpen} onClose={() => setModalOpen(false)} kind="skill" existing={editing} />
+      <EditEntityModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        kind="skill"
+        existing={editing}
+      />
     </div>
   )
 }

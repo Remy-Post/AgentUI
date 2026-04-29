@@ -9,20 +9,20 @@ const OPTIONS: Array<{ id: Model; name: string; description: string; icon: typeo
     id: 'claude-sonnet-4',
     name: 'claude-sonnet-4',
     description: 'Balanced default. Great for most chat and coding work.',
-    icon: Zap,
+    icon: Zap
   },
   {
     id: 'claude-opus-4',
     name: 'claude-opus-4',
     description: 'Deep reasoning, long horizons. Use for hard, multi-step tasks.',
-    icon: Cpu,
+    icon: Cpu
   },
   {
     id: 'claude-haiku-4-5',
     name: 'claude-haiku-4-5',
     description: 'Fast and cheap. Best for quick lookups and short replies.',
-    icon: Feather,
-  },
+    icon: Feather
+  }
 ]
 
 export default function ModelTab(): React.JSX.Element {

@@ -17,7 +17,10 @@ export default function ApiKeyTab(): React.JSX.Element {
     }
     const result = await window.api.setApiKey(key.trim())
     if (result.ok) {
-      setStatus({ kind: 'ok', message: 'Saved. Restart the app for the server to pick up the new key.' })
+      setStatus({
+        kind: 'ok',
+        message: 'Saved. Restart the app for the server to pick up the new key.'
+      })
       setKey('')
       void hasKeyQuery.refetch()
     } else {
@@ -42,7 +45,7 @@ export default function ApiKeyTab(): React.JSX.Element {
       const json = (await res.json()) as { db?: string; sdk?: string }
       setStatus({
         kind: json.db === 'up' && json.sdk === 'ready' ? 'ok' : 'err',
-        message: `db: ${json.db ?? '?'} · sdk: ${json.sdk ?? '?'}`,
+        message: `db: ${json.db ?? '?'} · sdk: ${json.sdk ?? '?'}`
       })
     } catch (error) {
       setStatus({ kind: 'err', message: error instanceof Error ? error.message : 'unknown error' })
@@ -59,8 +62,9 @@ export default function ApiKeyTab(): React.JSX.Element {
         <div className="pane-head-text">
           <div className="pane-title">API key</div>
           <div className="pane-sub">
-            Stored locally via Electron <span className="mono">safeStorage</span>. Decrypted at app start
-            and passed to the Express child as <span className="mono">ANTHROPIC_API_KEY</span>.
+            Stored locally via Electron <span className="mono">safeStorage</span>. Decrypted at app
+            start and passed to the Express child as <span className="mono">ANTHROPIC_API_KEY</span>
+            .
           </div>
         </div>
       </div>
@@ -73,7 +77,7 @@ export default function ApiKeyTab(): React.JSX.Element {
               width: 8,
               height: 8,
               borderRadius: 999,
-              background: configured ? 'var(--color-good)' : 'var(--color-error)',
+              background: configured ? 'var(--color-good)' : 'var(--color-error)'
             }}
           />
           <span style={{ fontSize: 13, color: 'var(--color-ink-2)' }}>
@@ -110,7 +114,7 @@ export default function ApiKeyTab(): React.JSX.Element {
             alignItems: 'center',
             gap: 6,
             fontSize: 12,
-            color: status.kind === 'ok' ? 'var(--color-good)' : 'var(--color-error)',
+            color: status.kind === 'ok' ? 'var(--color-good)' : 'var(--color-error)'
           }}
         >
           {status.kind === 'ok' ? <Check size={12} /> : <AlertCircle size={12} />}

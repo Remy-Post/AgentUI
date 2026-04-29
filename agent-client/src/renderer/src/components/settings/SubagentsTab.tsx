@@ -9,11 +9,11 @@ export default function SubagentsTab(): React.JSX.Element {
   const queryClient = useQueryClient()
   const list = useQuery({
     queryKey: ['subagents'],
-    queryFn: () => apiFetch<SubagentDTO[]>('/api/subagents'),
+    queryFn: () => apiFetch<SubagentDTO[]>('/api/subagents')
   })
   const remove = useMutation({
     mutationFn: (id: string) => apiFetch<void>(`/api/subagents/${id}`, { method: 'DELETE' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['subagents'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['subagents'] })
   })
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -34,8 +34,8 @@ export default function SubagentsTab(): React.JSX.Element {
         <div className="pane-head-text">
           <div className="pane-title">Subagents</div>
           <div className="pane-sub">
-            Materialized to <span className="mono">.claude/agents/</span> when enabled. Available to the SDK
-            session.
+            Materialized to <span className="mono">.claude/agents/</span> when enabled. Available to
+            the SDK session.
           </div>
         </div>
         <button type="button" className="btn-primary" onClick={openCreate}>

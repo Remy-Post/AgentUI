@@ -19,13 +19,13 @@ function applyCSP(port: number): void {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data:",
-      `connect-src 'self' http://127.0.0.1:${port} ws://127.0.0.1:${port}`,
+      `connect-src 'self' http://127.0.0.1:${port} ws://127.0.0.1:${port}`
     ].join('; ')
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [policy],
-      },
+        'Content-Security-Policy': [policy]
+      }
     })
   })
 }
@@ -41,8 +41,8 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
-      nodeIntegration: false,
-    },
+      nodeIntegration: false
+    }
   })
 
   mainWindow.on('ready-to-show', () => {
@@ -79,7 +79,7 @@ app.whenReady().then(async () => {
   try {
     serverPort = await startServerProcess({
       ANTHROPIC_API_KEY: stored.ANTHROPIC_API_KEY,
-      MONGODB_URI: process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/agent-desk',
+      MONGODB_URI: process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/agent-desk'
     })
     if (!is.dev) applyCSP(serverPort)
   } catch (error) {

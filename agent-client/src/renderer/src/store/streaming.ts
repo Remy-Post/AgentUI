@@ -23,7 +23,7 @@ const initial: StreamState = {
   conversationId: null,
   buffer: '',
   toolEvents: [],
-  error: null,
+  error: null
 }
 
 export const useStreamingStore = create<StreamState & StreamActions>((set) => ({
@@ -36,5 +36,5 @@ export const useStreamingStore = create<StreamState & StreamActions>((set) => ({
   clearToolEvents: () => set({ toolEvents: [] }),
   end: () => set({ active: false }),
   fail: (message) => set({ active: false, error: message }),
-  reset: () => set(initial),
+  reset: () => set(initial)
 }))

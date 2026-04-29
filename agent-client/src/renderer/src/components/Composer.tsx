@@ -43,7 +43,10 @@ export default function Composer({ disabled, onSubmit }: Props): React.JSX.Eleme
         />
         <div className="composer-row">
           <div className="composer-meta">
-            <span className="chrome" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span
+              className="chrome"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            >
               <CornerDownLeft size={12} /> Enter to send
             </span>
             <span className="chrome">·</span>
@@ -67,4 +70,3 @@ export default function Composer({ disabled, onSubmit }: Props): React.JSX.Eleme
     </div>
   )
 }
-

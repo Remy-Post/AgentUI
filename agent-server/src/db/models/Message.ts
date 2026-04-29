@@ -6,6 +6,11 @@ const MessageSchema = new mongoose.Schema(
     role: { type: String, enum: ['user', 'assistant', 'tool', 'system'], required: true },
     content: { type: mongoose.Schema.Types.Mixed, required: true },
     costUsd: { type: Number },
+    inputTokens: { type: Number },
+    outputTokens: { type: Number },
+    cacheCreationInputTokens: { type: Number },
+    cacheReadInputTokens: { type: Number },
+    model: { type: String },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 )

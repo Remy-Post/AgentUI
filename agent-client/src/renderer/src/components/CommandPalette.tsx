@@ -66,7 +66,7 @@ function usePaletteData(): CacheSnapshot {
   return useSyncExternalStore(
     (onStoreChange) => queryClient.getQueryCache().subscribe(() => onStoreChange()),
     () => readCacheSnapshot(queryClient),
-    () => readCacheSnapshot(queryClient),
+    () => readCacheSnapshot(queryClient)
   )
 }
 
@@ -115,7 +115,7 @@ function buildExcerpt(content: string, index: number, queryLength: number): stri
 
 function buildConversationResults(
   conversations: ConversationDTO[],
-  query: string,
+  query: string
 ): ConversationResult[] {
   const sorted = [...conversations].sort(compareByNewest)
 
@@ -126,7 +126,7 @@ function buildConversationResults(
       title: conversation.title,
       subtitle: conversation.model,
       updatedAt: conversation.updatedAt,
-      score: 0,
+      score: 0
     }))
   }
 
@@ -141,8 +141,8 @@ function buildConversationResults(
           title: conversation.title,
           subtitle: conversation.model,
           updatedAt: conversation.updatedAt,
-          score,
-        },
+          score
+        }
       ]
     })
     .sort((left, right) => right.score - left.score || compareByNewest(left, right))
@@ -153,7 +153,7 @@ function buildMessageResults(
   messageGroups: CachedMessageGroup[],
   conversations: ConversationDTO[],
   query: string,
-  excludedConversationIds: Set<string>,
+  excludedConversationIds: Set<string>
 ): MessageResult[] {
   if (!query) return []
 
@@ -184,7 +184,7 @@ function buildMessageResults(
           title: conversation.title,
           excerpt: buildExcerpt(message.content, index, query.length),
           updatedAt: message.createdAt,
-          score: scoreMessageMatch(normalizedContent, query, index),
+          score: scoreMessageMatch(normalizedContent, query, index)
         }
 
         if (
@@ -213,7 +213,7 @@ export default function CommandPalette({
   selectedConversationId,
   onClose,
   onQueryChange,
-  onSelectConversation,
+  onSelectConversation
 }: Props): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null)
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -221,7 +221,12 @@ export default function CommandPalette({
   const normalizedQuery = normalize(query)
   const conversationResults = buildConversationResults(conversations, normalizedQuery)
   const titleMatchedIds = new Set(conversationResults.map((r) => r.conversationId))
-  const messageResults = buildMessageResults(messageGroups, conversations, normalizedQuery, titleMatchedIds)
+  const messageResults = buildMessageResults(
+    messageGroups,
+    conversations,
+    normalizedQuery,
+    titleMatchedIds
+  )
   const allResults = [...conversationResults, ...messageResults]
   const activeIndex =
     allResults.length === 0
@@ -301,18 +306,32 @@ export default function CommandPalette({
                     style={{
                       width: '100%',
                       textAlign: 'left',
-                      background: isSelected ? 'var(--color-active-soft)' : undefined,
+                      background: isSelected ? 'var(--color-active-soft)' : undefined
                     }}
                   >
                     <Search size={14} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
                         {result.title}
                       </div>
                       <div className="preview">{result.subtitle}</div>
                     </div>
                     {isActive && (
-                      <span style={{ color: 'var(--color-good)', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                      <span
+                        style={{
+                          color: 'var(--color-good)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontSize: 11
+                        }}
+                      >
                         <Check size={12} />
                         Active
                       </span>
@@ -342,12 +361,18 @@ export default function CommandPalette({
                     style={{
                       width: '100%',
                       textAlign: 'left',
-                      background: isSelected ? 'var(--color-active-soft)' : undefined,
+                      background: isSelected ? 'var(--color-active-soft)' : undefined
                     }}
                   >
                     <MessageSquare size={14} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
                         {result.title}
                       </div>
                       <div
@@ -356,7 +381,7 @@ export default function CommandPalette({
                           display: '-webkit-box',
                           WebkitLineClamp: 2,
                           WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
+                          overflow: 'hidden'
                         }}
                       >
                         {result.excerpt}

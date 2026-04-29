@@ -4,6 +4,10 @@ export type ConversationDTO = {
   model: string
   sdkSessionId?: string
   totalCostUsd?: number
+  totalInputTokens?: number
+  totalOutputTokens?: number
+  totalCacheCreationInputTokens?: number
+  totalCacheReadInputTokens?: number
   effort?: 'low' | 'medium' | 'high'
   attachedSkillIds?: string[]
   attachedSubagentIds?: string[]
@@ -20,6 +24,11 @@ export type MessageDTO = {
   content: unknown
   createdAt: string
   costUsd?: number
+  inputTokens?: number
+  outputTokens?: number
+  cacheCreationInputTokens?: number
+  cacheReadInputTokens?: number
+  model?: string
 }
 
 export type SkillDTO = {
@@ -100,4 +109,36 @@ export type SSEToolProgressPayload = {
 
 export type SendMessageRequest = {
   content: string
+}
+
+export type UsageWindow = '24h' | '7d' | '30d' | 'all'
+
+export type UsageBucket = {
+  spendUsd: number
+  inTokens: number
+  outTokens: number
+  spark: number[]
+}
+
+export type UsageByModelRow = {
+  model: string
+  inTokens: number
+  outTokens: number
+  spendUsd: number
+}
+
+export type UsageRunRow = {
+  id: string
+  title: string
+  model: string
+  tokens: number
+  spendUsd: number
+}
+
+export type UsageDTO = {
+  totals: UsageBucket
+  today: UsageBucket
+  lastHour: UsageBucket
+  byModel: UsageByModelRow[]
+  recentRuns: UsageRunRow[]
 }

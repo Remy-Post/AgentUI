@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 export type View = 'chat' | 'finance' | 'settings'
-export type SettingsTab = 'api' | 'model' | 'subagents' | 'skills' | 'tools'
+export type SettingsTab = 'api' | 'model' | 'subagents' | 'skills' | 'tools' | 'conversations'
 
 type ViewState = {
   view: View
@@ -14,5 +14,5 @@ export const useViewStore = create<ViewState>((set) => ({
   view: 'chat',
   settingsTab: 'api',
   setView: (view) => set({ view }),
-  setSettingsTab: (settingsTab) => set({ settingsTab }),
+  setSettingsTab: (settingsTab) => set({ settingsTab })
 }))

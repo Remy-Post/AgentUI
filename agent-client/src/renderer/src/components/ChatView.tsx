@@ -17,7 +17,7 @@ type Props = {
 export default function ChatView({
   conversationId,
   inspectorOpen,
-  onToggleInspector,
+  onToggleInspector
 }: Props): React.JSX.Element {
   const queryClient = useQueryClient()
   const streaming = useStreamingStore()
@@ -25,7 +25,7 @@ export default function ChatView({
 
   const conversationsQuery = useQuery({
     queryKey: ['conversations'],
-    queryFn: () => apiFetch<ConversationDTO[]>('/api/sessions'),
+    queryFn: () => apiFetch<ConversationDTO[]>('/api/sessions')
   })
   const conversation = conversationsQuery.data?.find((c) => c._id === conversationId) ?? null
 
@@ -35,7 +35,7 @@ export default function ChatView({
       if (!conversationId) return [] as MessageDTO[]
       return apiFetch<MessageDTO[]>(`/api/sessions/${conversationId}/messages`)
     },
-    enabled: !!conversationId,
+    enabled: !!conversationId
   })
   const messages = messagesQuery.data ?? []
 
@@ -51,9 +51,7 @@ export default function ChatView({
     return (
       <section className="chat" style={{ alignItems: 'center', justifyContent: 'center' }}>
         <div className="chrome" style={{ padding: 24, textAlign: 'center' }}>
-          {!conversationId
-            ? 'Select a conversation or create a new one.'
-            : 'Loading conversation…'}
+          {!conversationId ? 'Select a conversation or create a new one.' : 'Loading conversation…'}
         </div>
       </section>
     )
@@ -89,8 +87,8 @@ export default function ChatView({
               default:
                 break
             }
-          },
-        },
+          }
+        }
       )
     } catch (error) {
       streaming.fail(error instanceof Error ? error.message : 'stream_error')

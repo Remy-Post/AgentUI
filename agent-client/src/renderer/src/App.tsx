@@ -49,7 +49,10 @@ function App(): React.JSX.Element {
       const target = event.target as HTMLElement | null
       const tag = target?.tagName
       const inField =
-        tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable === true
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        target?.isContentEditable === true
 
       const isMeta = event.ctrlKey || event.metaKey
       const noMods = !event.altKey && !event.shiftKey
@@ -91,7 +94,10 @@ function App(): React.JSX.Element {
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center text-sm" style={{ color: 'var(--color-muted)' }}>
+      <div
+        className="flex h-full items-center justify-center text-sm"
+        style={{ color: 'var(--color-muted)' }}
+      >
         Connecting to server...
       </div>
     )

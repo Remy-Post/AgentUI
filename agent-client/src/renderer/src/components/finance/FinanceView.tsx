@@ -9,7 +9,7 @@ import type { ConversationDTO } from '@shared/types'
 const MODEL_DOT_COLORS: Record<string, string> = {
   'claude-sonnet-4': 'var(--color-ink)',
   'claude-opus-4': 'var(--color-ink-3)',
-  'claude-haiku-4-5': 'var(--color-line-2)',
+  'claude-haiku-4-5': 'var(--color-line-2)'
 }
 
 type Props = {
@@ -23,21 +23,22 @@ const WINDOW_LABEL: Record<FinanceWindow, string> = {
   '24h': 'Last 24 hours',
   '7d': 'Last 7 days',
   '30d': 'This month',
-  all: 'All time',
+  all: 'All time'
 }
 
 export default function FinanceView({
   windowValue,
   setWindow,
   selectedConversationId,
-  onClearSelection,
+  onClearSelection
 }: Props): React.JSX.Element {
   const { data } = useFinance({ window: windowValue })
   const conversationsQuery = useQuery({
     queryKey: ['conversations'],
-    queryFn: () => apiFetch<ConversationDTO[]>('/api/sessions'),
+    queryFn: () => apiFetch<ConversationDTO[]>('/api/sessions')
   })
-  const conversation = conversationsQuery.data?.find((c) => c._id === selectedConversationId) ?? null
+  const conversation =
+    conversationsQuery.data?.find((c) => c._id === selectedConversationId) ?? null
 
   return (
     <section className="settings-section">
@@ -45,7 +46,7 @@ export default function FinanceView({
         <div>
           <div className="settings-title">Finance</div>
           <div className="chrome" style={{ marginTop: 4 }}>
-            local meter · mock data this pass
+            local meter · aggregated from this device
           </div>
         </div>
         <div className="chips">
@@ -87,8 +88,8 @@ export default function FinanceView({
               <div className="pane-head-text">
                 <div className="pane-title">Spend & token consumption</div>
                 <div className="pane-sub">
-                  Local meter. Reads from <span className="mono">~/.agentdesk/usage.sqlite</span> when wired up.
-                  The Anthropic console is the source of truth for billing.
+                  Aggregated from this device&apos;s conversation history. The Anthropic console is
+                  the source of truth for billing.
                 </div>
               </div>
             </div>
@@ -163,7 +164,14 @@ export default function FinanceView({
               </div>
               {data.recentRuns.map((run) => (
                 <div key={run.id} className="breakdown-row">
-                  <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div
+                    style={{
+                      minWidth: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
                     {run.title}
                   </div>
                   <div className="num">{run.tokens.toLocaleString()}</div>

@@ -17,12 +17,12 @@ function EntityList({ kind }: { kind: EntityKind }): React.JSX.Element {
 
   const list = useQuery({
     queryKey: [queryKey],
-    queryFn: () => apiFetch<Array<SkillDTO | SubagentDTO>>(path),
+    queryFn: () => apiFetch<Array<SkillDTO | SubagentDTO>>(path)
   })
 
   const remove = useMutation({
     mutationFn: (id: string) => apiFetch<void>(`${path}/${id}`, { method: 'DELETE' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: [queryKey] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [queryKey] })
   })
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -57,7 +57,7 @@ function EntityList({ kind }: { kind: EntityKind }): React.JSX.Element {
         {(list.data ?? []).map((entity) => {
           const subtitle =
             kind === 'subagent'
-              ? (entity as SubagentDTO).model ?? '—'
+              ? ((entity as SubagentDTO).model ?? '—')
               : truncate(entity.description ?? '', 38)
           return (
             <li key={entity._id} className="conv-item" onClick={() => openEdit(entity)}>
@@ -91,7 +91,12 @@ function EntityList({ kind }: { kind: EntityKind }): React.JSX.Element {
         )}
       </ul>
 
-      <EditEntityModal open={modalOpen} onClose={() => setModalOpen(false)} kind={kind} existing={editing} />
+      <EditEntityModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        kind={kind}
+        existing={editing}
+      />
     </>
   )
 }
@@ -99,20 +104,38 @@ function EntityList({ kind }: { kind: EntityKind }): React.JSX.Element {
 type Props = {
   selectedConversationId: string | null
   onSelectConversation: (id: string) => void
+  collapsed?: boolean
+  onToggleCollapsed?: () => void
 }
 
 export default function SettingsSidebar({
   selectedConversationId,
   onSelectConversation,
+  collapsed,
+  onToggleCollapsed
 }: Props): React.JSX.Element {
   const settingsTab = useViewStore((s) => s.settingsTab)
 
   if (settingsTab === 'skills') {
-    return <Sidebar mode="settings-skills" footLabel="settings" bodySlot={<EntityList kind="skill" />} />
+    return (
+      <Sidebar
+        mode="settings-skills"
+        footLabel="settings"
+        bodySlot={<EntityList kind="skill" />}
+        collapsed={collapsed}
+        onToggleCollapsed={onToggleCollapsed}
+      />
+    )
   }
   if (settingsTab === 'subagents') {
     return (
-      <Sidebar mode="settings-subagents" footLabel="settings" bodySlot={<EntityList kind="subagent" />} />
+      <Sidebar
+        mode="settings-subagents"
+        footLabel="settings"
+        bodySlot={<EntityList kind="subagent" />}
+        collapsed={collapsed}
+        onToggleCollapsed={onToggleCollapsed}
+      />
     )
   }
   return (
@@ -120,6 +143,8 @@ export default function SettingsSidebar({
       mode="settings-default"
       selectedId={selectedConversationId}
       onSelect={onSelectConversation}
+      collapsed={collapsed}
+      onToggleCollapsed={onToggleCollapsed}
     />
   )
 }

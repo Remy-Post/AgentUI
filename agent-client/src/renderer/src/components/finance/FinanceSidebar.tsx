@@ -7,15 +7,19 @@ import type { ConversationDTO } from '@shared/types'
 type Props = {
   selectedConversationId: string | null
   onSelect: (id: string | null) => void
+  collapsed?: boolean
+  onToggleCollapsed?: () => void
 }
 
 export default function FinanceSidebar({
   selectedConversationId,
   onSelect,
+  collapsed,
+  onToggleCollapsed
 }: Props): React.JSX.Element {
   const conversationsQuery = useQuery({
     queryKey: ['conversations'],
-    queryFn: () => apiFetch<ConversationDTO[]>('/api/sessions'),
+    queryFn: () => apiFetch<ConversationDTO[]>('/api/sessions')
   })
 
   const top = (conversationsQuery.data ?? [])
@@ -55,5 +59,13 @@ export default function FinanceSidebar({
     </>
   )
 
-  return <Sidebar mode="finance" footLabel="finance" bodySlot={body} />
+  return (
+    <Sidebar
+      mode="finance"
+      footLabel="finance"
+      bodySlot={body}
+      collapsed={collapsed}
+      onToggleCollapsed={onToggleCollapsed}
+    />
+  )
 }

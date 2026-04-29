@@ -11,14 +11,14 @@ export function useSettings(): {
   const query = useQuery({
     queryKey: ['settings'],
     queryFn: () => apiFetch<SettingsDTO>('/api/settings'),
-    staleTime: 30_000,
+    staleTime: 30_000
   })
 
   const mutation = useMutation({
     mutationFn: (partial: UpdateSettingsRequest) =>
       apiFetch<SettingsDTO>('/api/settings', {
         method: 'PUT',
-        body: JSON.stringify(partial),
+        body: JSON.stringify(partial)
       }),
     onMutate: async (partial) => {
       await queryClient.cancelQueries({ queryKey: ['settings'] })
@@ -33,12 +33,12 @@ export function useSettings(): {
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ['settings'] })
-    },
+    }
   })
 
   return {
     data: query.data,
     isLoading: query.isLoading,
-    update: (partial) => mutation.mutate(partial),
+    update: (partial) => mutation.mutate(partial)
   }
 }

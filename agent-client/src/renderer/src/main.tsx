@@ -8,8 +8,8 @@ import { AppProvider } from './components/AppContext'
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 5_000, refetchOnWindowFocus: false },
-  },
+    queries: { staleTime: 5_000, refetchOnWindowFocus: false }
+  }
 })
 
 createRoot(document.getElementById('root')!).render(
@@ -19,5 +19,5 @@ createRoot(document.getElementById('root')!).render(
         <App />
       </AppProvider>
     </QueryClientProvider>
-  </StrictMode>,
+  </StrictMode>
 )

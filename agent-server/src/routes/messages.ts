@@ -32,17 +32,16 @@ router.post<'/', { id: string }>('/', async (req, res) => {
 
   markBusy(conversationId, true)
   const sse = openSSE(res)
-  let finalCost: number | undefined
+  let turnResult: Awaited<ReturnType<typeof runConversationTurn>> | undefined
 
   try {
-    const result = await runConversationTurn({
+    turnResult = await runConversationTurn({
       conversationId,
       content,
       conversation,
       sse,
       isClosed: () => res.writableEnded,
     })
-    finalCost = result.totalCostUsd
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     await Message.create({ conversationId, role: 'system', content: { kind: 'error', message } })
@@ -52,10 +51,18 @@ router.post<'/', { id: string }>('/', async (req, res) => {
   } finally {
     markBusy(conversationId, false)
     sse.close()
-    if (typeof finalCost === 'number') {
+    if (turnResult && typeof turnResult.totalCostUsd === 'number') {
       await Conversation.updateOne(
         { _id: conversationId },
-        { $inc: { totalCostUsd: finalCost } },
+        {
+          $inc: {
+            totalCostUsd: turnResult.totalCostUsd,
+            totalInputTokens: turnResult.totalInputTokens ?? 0,
+            totalOutputTokens: turnResult.totalOutputTokens ?? 0,
+            totalCacheCreationInputTokens: turnResult.totalCacheCreationInputTokens ?? 0,
+            totalCacheReadInputTokens: turnResult.totalCacheReadInputTokens ?? 0,
+          },
+        },
       )
     }
   }

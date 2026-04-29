@@ -18,7 +18,7 @@ export async function streamPost(path: string, body: unknown, opts: StreamOption
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify(body),
-    signal: opts.signal,
+    signal: opts.signal
   })
 
   if (!res.ok || !res.body) {

@@ -2,7 +2,12 @@ import { useQuery } from '@tanstack/react-query'
 import { getServerOrigin } from '../lib/api'
 import type { HealthDTO } from '@shared/types'
 
-export type ServerStatus = 'connected' | 'server-unreachable' | 'db-down' | 'sdk-not-ready' | 'checking'
+export type ServerStatus =
+  | 'connected'
+  | 'server-unreachable'
+  | 'db-down'
+  | 'sdk-not-ready'
+  | 'checking'
 
 export function useServerStatus(): ServerStatus {
   const query = useQuery({
@@ -23,7 +28,7 @@ export function useServerStatus(): ServerStatus {
     },
     refetchInterval: 8000,
     refetchIntervalInBackground: false,
-    staleTime: 5000,
+    staleTime: 5000
   })
 
   if (query.isPending) return 'checking'
