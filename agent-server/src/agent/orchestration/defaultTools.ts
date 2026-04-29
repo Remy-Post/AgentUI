@@ -579,6 +579,38 @@ function enabledFromLegacyAliases(id: string, docs: LegacyToolDoc[]): boolean | 
   return states.some(Boolean)
 }
 
+export function buildToolRegistryUpsert(tool: ToolCatalogEntry, enabled = tool.enabled) {
+  const metadata = {
+    label: tool.label,
+    description: tool.description,
+    category: tool.category,
+    kind: tool.kind,
+    order: tool.order,
+    quickRank: tool.quickRank,
+    locked: tool.locked === true,
+    permission: tool.permission,
+  }
+  const setFields: Record<string, unknown> = { ...metadata }
+  const setOnInsert: { id: string; enabled?: boolean } = { id: tool.id }
+
+  if (tool.locked) {
+    setFields.enabled = true
+  } else {
+    setOnInsert.enabled = enabled
+  }
+
+  return {
+    updateOne: {
+      filter: { id: tool.id },
+      update: {
+        $set: setFields,
+        $setOnInsert: setOnInsert,
+      },
+      upsert: true,
+    },
+  }
+}
+
 export async function ensureToolRegistrySeeded(): Promise<void> {
   const legacyDocs = (await Tool.find({ id: { $in: LEGACY_IDS } }).lean()) as unknown as LegacyToolDoc[]
 
@@ -586,33 +618,7 @@ export async function ensureToolRegistrySeeded(): Promise<void> {
     DEFAULT_TOOLS.map((tool) => {
       const inheritedEnabled = enabledFromLegacyAliases(tool.id, legacyDocs)
       const enabled = inheritedEnabled ?? tool.enabled
-      const metadata = {
-        label: tool.label,
-        description: tool.description,
-        category: tool.category,
-        kind: tool.kind,
-        order: tool.order,
-        quickRank: tool.quickRank,
-        locked: tool.locked === true,
-        permission: tool.permission,
-      }
-
-      return {
-        updateOne: {
-          filter: { id: tool.id },
-          update: {
-            $set: {
-              ...metadata,
-              ...(tool.locked ? { enabled: true } : {}),
-            },
-            $setOnInsert: {
-              id: tool.id,
-              enabled,
-            },
-          },
-          upsert: true,
-        },
-      }
+      return buildToolRegistryUpsert(tool, enabled)
     }),
   )
 

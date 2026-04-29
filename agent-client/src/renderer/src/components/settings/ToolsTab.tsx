@@ -262,7 +262,7 @@ export default function ToolsTab(): React.JSX.Element {
             Toggle Claude Code tools, MCP connectors, and scoped service access for subagents.{' '}
             {summary}.{' '}
             {isFallback && (
-              <span className="chrome">(fallback list - backend endpoint not yet available)</span>
+              <span className="chrome">(local fallback)</span>
             )}
           </div>
         </div>

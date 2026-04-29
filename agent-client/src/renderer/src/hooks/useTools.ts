@@ -2,6 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ToolDTO, UpdateToolRequest } from '@shared/types'
 import { apiFetch } from '../lib/api'
 
+type ToolsQueryData = {
+  tools: ToolDTO[]
+  fallback: boolean
+}
+
+const FALLBACK_STORAGE_KEY = 'agentui.tools.fallback.enabled.v1'
+
 function fallbackTool(
   id: string,
   label: string,
@@ -79,9 +86,47 @@ const FALLBACK_TOOLS: ToolDTO[] = [
   fallbackTool('sqlite.query', 'SQLite query', 'database', false, 1210, { kind: 'compatibility' })
 ]
 
-function isMissingEndpoint(error: unknown): boolean {
-  if (error instanceof Error) return error.message.startsWith('request_failed_404')
-  return false
+function readFallbackOverrides(): Record<string, boolean> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(FALLBACK_STORAGE_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object') return {}
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>)
+        .filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean')
+    )
+  } catch {
+    return {}
+  }
+}
+
+function writeFallbackOverride(id: string, enabled: boolean): void {
+  if (typeof window === 'undefined') return
+  try {
+    const overrides = readFallbackOverrides()
+    overrides[id] = enabled
+    window.localStorage.setItem(FALLBACK_STORAGE_KEY, JSON.stringify(overrides))
+  } catch {
+    // localStorage can be unavailable in restricted renderer contexts.
+  }
+}
+
+function fallbackTools(): ToolDTO[] {
+  const overrides = readFallbackOverrides()
+  return FALLBACK_TOOLS.map((tool) => ({
+    ...tool,
+    enabled: tool.locked ? true : overrides[tool.id] ?? tool.enabled
+  }))
+}
+
+function fallbackQueryData(): ToolsQueryData {
+  return { tools: fallbackTools(), fallback: true }
+}
+
+function describeToolFetchError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 export function useTools(): {
@@ -93,16 +138,17 @@ export function useTools(): {
   const queryClient = useQueryClient()
   const query = useQuery({
     queryKey: ['tools'],
-    queryFn: async (): Promise<{ tools: ToolDTO[]; fallback: boolean }> => {
+    queryFn: async (): Promise<ToolsQueryData> => {
       try {
         const data = await apiFetch<ToolDTO[]>('/api/tools')
+        if (!Array.isArray(data) || data.length === 0) {
+          console.warn('[useTools] /api/tools returned no tools - using fallback list.')
+          return fallbackQueryData()
+        }
         return { tools: data, fallback: false }
       } catch (error) {
-        if (isMissingEndpoint(error)) {
-          console.warn('[useTools] /api/tools missing - using fallback list.')
-          return { tools: FALLBACK_TOOLS, fallback: true }
-        }
-        throw error
+        console.warn(`[useTools] /api/tools unavailable - using fallback list. ${describeToolFetchError(error)}`)
+        return fallbackQueryData()
       }
     },
     staleTime: 30_000
@@ -122,13 +168,17 @@ export function useTools(): {
           body: JSON.stringify(body)
         })
       } catch (error) {
-        if (isMissingEndpoint(error)) return null
-        throw error
+        if (typeof body.enabled === 'boolean') writeFallbackOverride(id, body.enabled)
+        console.warn(`[useTools] Unable to persist tool setting - keeping local fallback state. ${describeToolFetchError(error)}`)
+        return null
       }
     },
     onMutate: async ({ id, body }) => {
       await queryClient.cancelQueries({ queryKey: ['tools'] })
-      const previous = queryClient.getQueryData<{ tools: ToolDTO[]; fallback: boolean }>(['tools'])
+      const previous = queryClient.getQueryData<ToolsQueryData>(['tools'])
+      if (typeof body.enabled === 'boolean' && previous?.fallback) {
+        writeFallbackOverride(id, body.enabled)
+      }
       if (previous) {
         queryClient.setQueryData(['tools'], {
           ...previous,
@@ -145,8 +195,10 @@ export function useTools(): {
     }
   })
 
+  const data = query.data ?? fallbackQueryData()
+
   return {
-    tools: query.data?.tools ?? [],
+    tools: data.tools,
     isLoading: query.isLoading,
     isFallback: query.data?.fallback ?? false,
     setEnabled: (id, enabled) => mutation.mutate({ id, body: { enabled } })

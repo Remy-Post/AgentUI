@@ -5,7 +5,7 @@ import { ensureTurnSubagents, planDynamicSubagentTasks } from './dynamicSubagent
 import { buildQueryOptionsFromRuntime } from './options.ts'
 import { normalizeSdkMessage } from './events.ts'
 import { expandToolNames, makeToolPermissionPolicy, resolveToolPolicy } from './toolPolicy.ts'
-import { DEFAULT_TOOLS, LEGACY_TOOL_ALIASES } from './defaultTools.ts'
+import { DEFAULT_TOOLS, LEGACY_TOOL_ALIASES, buildToolRegistryUpsert } from './defaultTools.ts'
 import { buildGwsCallArgs, GwsCommandError } from '../../mcp/gwsCommand.ts'
 import {
   DbCommandError,
@@ -75,6 +75,15 @@ test('catalog includes documented tools, metadata, quick pins, and legacy aliase
   )
   assert.equal(DEFAULT_TOOLS.find((tool) => tool.id === 'Agent')?.locked, true)
   assert.deepEqual(LEGACY_TOOL_ALIASES['shell.exec'], ['Bash'])
+})
+
+test('locked tool registry upserts do not update enabled in conflicting operators', () => {
+  const agentTool = DEFAULT_TOOLS.find((tool) => tool.id === 'Agent')
+  assert.ok(agentTool)
+
+  const op = buildToolRegistryUpsert(agentTool, true)
+  assert.equal(op.updateOne.update.$set.enabled, true)
+  assert.equal(Object.hasOwn(op.updateOne.update.$setOnInsert, 'enabled'), false)
 })
 
 test('maps enabled UI tools to SDK tools and excludes disabled tools', () => {

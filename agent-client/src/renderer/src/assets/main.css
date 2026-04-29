@@ -424,6 +424,27 @@
 }
 .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.plan-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 6px;
+  background: transparent; color: var(--color-muted);
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  transition: all .15s; border: 1px solid transparent;
+}
+.plan-btn:hover { background: var(--color-active-soft); color: var(--color-ink); }
+.plan-btn.active {
+  background: var(--color-good); color: #fff;
+}
+
+.composer-shell.plan-mode {
+  background: #eef7ee;
+  border-color: #c2e2c2;
+}
+.composer-shell.plan-mode .composer-input {
+  color: var(--color-good);
+}
+
 /* ===== Right rail ===== */
 .rail {
   position: sticky;

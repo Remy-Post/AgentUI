@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, CornerDownLeft } from 'lucide-react'
+import { ArrowRight, CornerDownLeft, Map } from 'lucide-react'
 import ContextDisk from './ContextDisk'
 import { useContextWindow } from '../hooks/useContextWindow'
 
@@ -16,6 +16,7 @@ export default function Composer({
 }: Props): React.JSX.Element {
   const contextQuery = useContextWindow(conversationId)
   const [value, setValue] = useState('')
+  const [isPlanMode, setIsPlanMode] = useState(false)
   const ref = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -33,7 +34,7 @@ export default function Composer({
 
   return (
     <div className="composer">
-      <div className="composer-shell">
+      <div className={`composer-shell ${isPlanMode ? 'plan-mode' : ''}`}>
         <textarea
           ref={ref}
           className="composer-input"
@@ -70,16 +71,27 @@ export default function Composer({
               model={contextQuery.data?.model}
               hasData={!!contextQuery.data && contextQuery.data.usedTokens > 0}
             />
-            <button
-              type="button"
-              className="send-btn"
-              onClick={handleSubmit}
-              disabled={disabled || !value.trim()}
-              title="Send"
-            >
-              <ArrowRight size={12} />
-              Send
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+              <button
+                type="button"
+                className={`plan-btn ${isPlanMode ? 'active' : ''}`}
+                onClick={() => setIsPlanMode(!isPlanMode)}
+                title="Toggle Plan Mode"
+              >
+                <Map size={12} />
+                Plan
+              </button>
+              <button
+                type="button"
+                className="send-btn"
+                onClick={handleSubmit}
+                disabled={disabled || !value.trim()}
+                title="Send"
+              >
+                <ArrowRight size={12} />
+                Send
+              </button>
+            </div>
           </div>
         </div>
       </div>
