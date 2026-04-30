@@ -93,15 +93,11 @@ function ChatSidebarBody({
                 <div className="conv-title">{c.title}</div>
                 <span className="chrome">{formatRelativeTime(c.updatedAt)}</span>
               </div>
-              <div className="conv-meta">
-                <span className="chrome">{c.model}</span>
-                {typeof c.totalCostUsd === 'number' && c.totalCostUsd > 0 && (
-                  <>
-                    <span className="chrome">·</span>
-                    <span className="chrome mono">{formatUsd(c.totalCostUsd)}</span>
-                  </>
-                )}
-              </div>
+              {typeof c.totalCostUsd === 'number' && c.totalCostUsd > 0 && (
+                <div className="conv-meta">
+                  <span className="chrome mono">{formatUsd(c.totalCostUsd)}</span>
+                </div>
+              )}
             </div>
             <button
               type="button"

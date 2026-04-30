@@ -32,6 +32,33 @@ export type MessageDTO = {
   contextWindow?: number
 }
 
+export type MemoryType = 'preference' | 'fact' | 'project' | 'instruction' | 'note'
+
+export type MemoryDTO = {
+  _id: string
+  title: string
+  content: string
+  type: MemoryType
+  tags: string[]
+  sourceConversationId?: string
+  sourceMessageId?: string
+  usageCount: number
+  lastUsedAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreateMemoryRequest = {
+  title: string
+  content: string
+  type: MemoryType
+  tags?: string[]
+  sourceConversationId?: string
+  sourceMessageId?: string
+}
+
+export type UpdateMemoryRequest = Partial<CreateMemoryRequest>
+
 export type ContextBreakdown = {
   systemTokens: number
   toolTokens: number

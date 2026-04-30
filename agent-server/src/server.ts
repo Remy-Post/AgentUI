@@ -17,6 +17,7 @@ import usageRouter from './routes/usage.ts'
 import githubRouter from './routes/github.ts'
 import sessionGithubRouter from './routes/sessionGithub.ts'
 import logsRouter from './routes/logs.ts'
+import memoriesRouter from './routes/memories.ts'
 import { installServerLogCapture } from './logs.ts'
 
 installServerLogCapture()
@@ -55,6 +56,7 @@ app.use('/api/tools', toolsRouter)
 app.use('/api/usage', usageRouter)
 app.use('/api/github', githubRouter)
 app.use('/api/sessions/:id/github', sessionGithubRouter)
+app.use('/api/memories', memoriesRouter)
 
 const DEFAULT_DEV_PORT = 3001
 const desiredPort = process.parentPort ? 0 : Number(process.env.AGENT_SERVER_PORT ?? DEFAULT_DEV_PORT)

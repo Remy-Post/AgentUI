@@ -1,3 +1,10 @@
+import type {
+  CreateMemoryRequest,
+  MemoryDTO,
+  MemoryType,
+  UpdateMemoryRequest
+} from '@shared/types'
+
 let portPromise: Promise<number | null> | null = null
 
 export async function getServerOrigin(): Promise<string | null> {
@@ -22,4 +29,40 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
+}
+
+export type ListMemoriesParams = {
+  search?: string
+  type?: MemoryType | ''
+  tag?: string
+}
+
+export async function listMemories(params: ListMemoriesParams = {}): Promise<MemoryDTO[]> {
+  const query = new URLSearchParams()
+  const search = params.search?.trim()
+  const tag = params.tag?.trim()
+  if (search) query.set('search', search)
+  if (params.type) query.set('type', params.type)
+  if (tag) query.set('tag', tag)
+
+  const suffix = query.toString()
+  return apiFetch<MemoryDTO[]>(`/api/memories${suffix ? `?${suffix}` : ''}`)
+}
+
+export async function createMemory(body: CreateMemoryRequest): Promise<MemoryDTO> {
+  return apiFetch<MemoryDTO>('/api/memories', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  })
+}
+
+export async function updateMemory(id: string, body: UpdateMemoryRequest): Promise<MemoryDTO> {
+  return apiFetch<MemoryDTO>(`/api/memories/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body)
+  })
+}
+
+export async function deleteMemory(id: string): Promise<void> {
+  return apiFetch<void>(`/api/memories/${id}`, { method: 'DELETE' })
 }

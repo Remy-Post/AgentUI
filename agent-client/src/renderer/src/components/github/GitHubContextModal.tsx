@@ -101,6 +101,16 @@ export default function GitHubContextModal({
     () => selectedFileCount(preview?.entries ?? [], selected),
     [preview, selected]
   )
+  const rootSelectableEntries = useMemo(
+    () =>
+      (preview?.entries ?? []).filter(
+        (entry) => entry.parentPath === '' && entry.type !== 'submodule' && !entry.skipped
+      ),
+    [preview]
+  )
+  const rootSelectionComplete =
+    rootSelectableEntries.length > 0 &&
+    rootSelectableEntries.every((entry) => selected.has(entry.path))
 
   const openKeys = (): void => {
     setSettingsTab('api')
@@ -168,6 +178,21 @@ export default function GitHubContextModal({
 
       if (next.has(entry.path)) next.delete(entry.path)
       else next.add(entry.path)
+      return next
+    })
+  }
+
+  const addAllRootEntries = (): void => {
+    setSelected((current) => {
+      const next = new Set(current)
+      rootSelectableEntries.forEach((entry) => {
+        next.add(entry.path)
+        if (entry.type === 'dir') {
+          for (const value of next) {
+            if (isAncestorPath(entry.path, value)) next.delete(value)
+          }
+        }
+      })
       return next
     })
   }
@@ -294,6 +319,20 @@ export default function GitHubContextModal({
               <span className="chip">{preview.repository.private ? 'private' : 'public'}</span>
               <span className="chip mono">{preview.repository.ref}</span>
               {preview.repository.treeTruncated && <span className="chip">tree truncated</span>}
+            </div>
+
+            <div className="github-tree-actions">
+              <span className="chrome">
+                {selectedCount} selected · {rootSelectableEntries.length} root items available
+              </span>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={addAllRootEntries}
+                disabled={rootSelectableEntries.length === 0 || rootSelectionComplete}
+              >
+                Add all
+              </button>
             </div>
 
             <div className="github-tree list-card">

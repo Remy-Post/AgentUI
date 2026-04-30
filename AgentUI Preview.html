@@ -614,14 +614,54 @@
         min-height: 180px; display: grid; place-items: center;
         padding: 24px;
       }
-      .memory-body { display: grid; min-height: 0; }
-      .memory-placeholder {
-        min-height: min(420px, calc(100vh - 160px));
-        display: grid; place-items: center;
+      .memory-body { display: block; min-height: 0; padding: 24px 28px; }
+      .memory-pane { max-width: 980px; }
+      .memory-controls {
+        display: grid;
+        grid-template-columns: minmax(220px, 1fr) minmax(140px, 160px) minmax(120px, 180px) auto;
+        gap: 10px; align-items: center; margin-bottom: 14px;
       }
-      .memory-status { color: var(--color-ink-3); font-size: 15px; font-weight: 600; }
+      .memory-search { position: relative; display: block; min-width: 0; }
+      .memory-search svg {
+        position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+        color: var(--color-muted); pointer-events: none;
+      }
+      .memory-search .input { padding-left: 34px; }
+      .memory-row {
+        align-items: start;
+        grid-template-columns: 28px minmax(0, 1fr) auto;
+      }
+      .memory-main { min-width: 0; display: grid; gap: 6px; }
+      .memory-title-row {
+        min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      }
+      .memory-title {
+        min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .memory-type { flex: 0 0 auto; }
+      .memory-content {
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        overflow: hidden; overflow-wrap: anywhere; max-width: 100%;
+      }
+      .memory-meta {
+        min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+      }
+      .memory-tag {
+        max-width: 180px; padding: 2px 7px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .memory-actions { justify-content: flex-end; }
       @media (max-width: 1100px) {
         .logs-grid { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 860px) {
+        .memory-controls { grid-template-columns: 1fr 1fr; }
+      }
+      @media (max-width: 720px) {
+        .memory-body { padding: 20px 16px; }
+        .memory-controls { grid-template-columns: 1fr; }
+        .memory-row { grid-template-columns: 28px minmax(0, 1fr); }
+        .memory-actions { grid-column: 2; justify-content: flex-start; }
       }
 
       .field { margin-bottom: 18px; }
@@ -1778,8 +1818,8 @@
             <li class="conv-item active">
               <div class="dot"></div>
               <div>
-                <div class="conv-row"><div class="conv-title">Coming soon</div></div>
-                <div class="conv-meta"><span class="chrome">page 5</span></div>
+                <div class="conv-row"><div class="conv-title">All memories</div></div>
+                <div class="conv-meta"><span class="chrome">local · editable</span></div>
               </div>
             </li>
           </ul>
@@ -1793,12 +1833,78 @@
         <header class="settings-header">
           <div>
             <h2 class="settings-title">Memory</h2>
-            <div class="chrome">coming soon</div>
+            <div class="chrome">2 shown</div>
           </div>
         </header>
         <div class="settings-body memory-body">
-          <div class="memory-placeholder">
-            <div class="memory-status">Coming soon</div>
+          <div class="settings-pane memory-pane">
+            <div class="pane-head">
+              <div class="pane-head-text">
+                <div class="pane-title">All memories</div>
+                <div class="pane-sub">Local editable memory.</div>
+              </div>
+              <button class="btn-primary" type="button">+ New memory</button>
+            </div>
+            <div class="memory-controls">
+              <label class="memory-search">
+                <svg class="ic-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.3-4.3"/><circle cx="11" cy="11" r="7"/></svg>
+                <input class="input" placeholder="Search memories" />
+              </label>
+              <select class="select" aria-label="Filter by type">
+                <option>All types</option>
+                <option>Preference</option>
+                <option>Fact</option>
+                <option>Project</option>
+                <option>Instruction</option>
+                <option>Note</option>
+              </select>
+              <input class="input" placeholder="Tag" aria-label="Filter by tag" />
+              <button class="btn-secondary" type="button">Clear</button>
+            </div>
+            <div class="list-card memory-list">
+              <div class="list-row memory-row">
+                <span class="glyph">
+                  <svg class="ic-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-6 .1 4 4 0 0 0-2.5 5.8 4 4 0 0 0 .5 6.6A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 6 .1 4 4 0 0 1 2.5 5.8 4 4 0 0 1-.5 6.6A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/></svg>
+                </span>
+                <div class="memory-main">
+                  <div class="memory-title-row">
+                    <div class="name memory-title">Prefers concise implementation notes</div>
+                    <span class="chip memory-type">Preference</span>
+                  </div>
+                  <div class="desc memory-content">Keep memory-system explanations practical and focused on what changed, where it lives, and how to verify it.</div>
+                  <div class="memory-meta">
+                    <span class="chrome">updated now</span>
+                    <span class="chip memory-tag">#agentui</span>
+                    <span class="chip memory-tag">#ui</span>
+                  </div>
+                </div>
+                <div class="row-actions memory-actions">
+                  <button class="btn-secondary" type="button" style="padding: 6px 10px;">Edit</button>
+                  <button class="btn-danger" type="button">Delete</button>
+                </div>
+              </div>
+              <div class="list-row memory-row">
+                <span class="glyph">
+                  <svg class="ic-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-6 .1 4 4 0 0 0-2.5 5.8 4 4 0 0 0 .5 6.6A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 6 .1 4 4 0 0 1 2.5 5.8 4 4 0 0 1-.5 6.6A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/></svg>
+                </span>
+                <div class="memory-main">
+                  <div class="memory-title-row">
+                    <div class="name memory-title">AgentUI memory MVP</div>
+                    <span class="chip memory-type">Project</span>
+                  </div>
+                  <div class="desc memory-content">Memories are MongoDB-backed editable notes with text search, type filtering, tag filtering, and a future helper for context retrieval.</div>
+                  <div class="memory-meta">
+                    <span class="chrome">updated 4m</span>
+                    <span class="chip memory-tag">#memory</span>
+                    <span class="chip memory-tag">#mongodb</span>
+                  </div>
+                </div>
+                <div class="row-actions memory-actions">
+                  <button class="btn-secondary" type="button" style="padding: 6px 10px;">Edit</button>
+                  <button class="btn-danger" type="button">Delete</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

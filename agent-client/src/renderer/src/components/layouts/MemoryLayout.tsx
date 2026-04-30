@@ -13,10 +13,10 @@ function MemorySidebarBody(): React.JSX.Element {
           <div className="dot" />
           <div style={{ minWidth: 0 }}>
             <div className="conv-row">
-              <div className="conv-title">Coming soon</div>
+              <div className="conv-title">All memories</div>
             </div>
             <div className="conv-meta">
-              <span className="chrome">page 5</span>
+              <span className="chrome">local · editable</span>
             </div>
           </div>
         </li>
@@ -41,6 +41,7 @@ export default function MemoryLayout(): React.JSX.Element {
         bodySlot={<MemorySidebarBody />}
         collapsed={collapsed}
         onToggleCollapsed={() => setCollapsed(!collapsed)}
+        footLabel="memory"
       />
       <MemoryView />
     </div>
