@@ -62,7 +62,6 @@ export default function FinanceSidebar({
   return (
     <Sidebar
       mode="finance"
-      footLabel="finance"
       bodySlot={body}
       collapsed={collapsed}
       onToggleCollapsed={onToggleCollapsed}

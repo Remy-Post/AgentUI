@@ -18,9 +18,13 @@ export default function StatusDot(): React.JSX.Element {
   } satisfies Record<typeof status, string>
   const label = labelByStatus[status]
   const className = classByStatus[status]
+  const accessibleLabel = `Server status: ${label}`
   return (
-    <span className={className}>
-      <span className="status-label">{label}</span>
-    </span>
+    <span
+      className={className}
+      role="status"
+      aria-label={accessibleLabel}
+      title={accessibleLabel}
+    />
   )
 }

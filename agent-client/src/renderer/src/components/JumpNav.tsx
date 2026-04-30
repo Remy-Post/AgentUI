@@ -1,10 +1,18 @@
-import { MessageSquare, DollarSign, Settings as SettingsIcon } from 'lucide-react'
+import {
+  Brain,
+  DollarSign,
+  MessageSquare,
+  ScrollText,
+  Settings as SettingsIcon
+} from 'lucide-react'
 import { useViewStore, type View } from '../store/view'
 
 const TABS: Array<{ id: View; label: string; icon: typeof MessageSquare; key: string }> = [
   { id: 'chat', label: 'Chat', icon: MessageSquare, key: '1' },
   { id: 'finance', label: 'Finance', icon: DollarSign, key: '2' },
-  { id: 'settings', label: 'Settings', icon: SettingsIcon, key: '3' }
+  { id: 'settings', label: 'Settings', icon: SettingsIcon, key: '3' },
+  { id: 'logs', label: 'Logs', icon: ScrollText, key: '4' },
+  { id: 'memory', label: 'Memory', icon: Brain, key: '5' }
 ]
 
 export default function JumpNav(): React.JSX.Element {
@@ -20,10 +28,10 @@ export default function JumpNav(): React.JSX.Element {
           className={`jump-tab ${view === id ? 'active' : ''}`}
           onClick={() => setView(id)}
           aria-current={view === id}
+          aria-label={`${label} view`}
+          title={`${label} (${key})`}
         >
           <Icon />
-          <span className="jump-label">{label}</span>
-          <span className="kbd">{key}</span>
         </button>
       ))}
     </nav>

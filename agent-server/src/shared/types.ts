@@ -47,6 +47,95 @@ export type ContextDTO = {
   recordedAt: string | null
 }
 
+export type LogLevel = 'debug' | 'info' | 'warning' | 'error'
+
+export type LogSource = 'server' | 'renderer' | 'main'
+
+export type LogEntryDTO = {
+  id: string
+  source: LogSource
+  level: LogLevel
+  message: string
+  timestamp: string
+  meta?: Record<string, unknown>
+}
+
+export type ServerLogsDTO = {
+  entries: LogEntryDTO[]
+}
+
+export type GitHubAuthDTO = {
+  hasToken: boolean
+}
+
+export type GitHubLimitsDTO = {
+  maxTreeEntries: number
+  maxSelectedFiles: number
+  maxRepositoryBytes: number
+  maxFileBytes: number
+  maxTotalTextBytes: number
+  maxChunks: number
+  maxContextChars: number
+  chunkChars: number
+  chunkOverlap: number
+}
+
+export type GitHubRepositoryDTO = {
+  owner: string
+  repo: string
+  fullName: string
+  repoUrl: string
+  defaultBranch: string
+  ref: string
+  commitSha: string
+  treeSha: string
+  private: boolean
+  treeTruncated: boolean
+}
+
+export type GitHubTreeEntryDTO = {
+  path: string
+  name: string
+  parentPath: string
+  type: 'file' | 'dir' | 'submodule'
+  sha?: string
+  size?: number
+  language?: string
+  selectedDefault: boolean
+  skipped: boolean
+  skipReason?: string
+}
+
+export type GitHubPreviewRequest = {
+  url: string
+  ref?: string
+}
+
+export type GitHubPreviewDTO = {
+  repository: GitHubRepositoryDTO
+  entries: GitHubTreeEntryDTO[]
+  defaultSelectedPaths: string[]
+  skippedCount: number
+  limits: GitHubLimitsDTO
+}
+
+export type GitHubIngestRequest = {
+  url: string
+  ref?: string
+  selectedPaths: string[]
+}
+
+export type GitHubIngestDTO = {
+  sourceId: string
+  repository: GitHubRepositoryDTO
+  selectedFileCount: number
+  ingestedFileCount: number
+  chunkCount: number
+  skipped: Array<{ path: string; reason: string }>
+  errors: Array<{ path: string; message: string }>
+  limits: GitHubLimitsDTO
+}
+
 export type SkillDTO = {
   _id: string
   name: string
@@ -160,6 +249,7 @@ export type UsageBucket = {
   inTokens: number
   outTokens: number
   spark: number[]
+  bucketStarts: string[]
 }
 
 export type UsageByModelRow = {
@@ -178,9 +268,9 @@ export type UsageRunRow = {
 }
 
 export type UsageDTO = {
-  totals: UsageBucket
-  today: UsageBucket
-  lastHour: UsageBucket
+  monthly: UsageBucket
+  weekly: UsageBucket
+  hourly: UsageBucket
   byModel: UsageByModelRow[]
   recentRuns: UsageRunRow[]
 }

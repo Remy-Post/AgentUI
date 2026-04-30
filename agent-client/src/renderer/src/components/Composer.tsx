@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   ArrowRight,
   Bug,
@@ -11,6 +12,7 @@ import {
   SlidersHorizontal
 } from 'lucide-react'
 import ContextDisk from './ContextDisk'
+import GitHubContextModal from './github/GitHubContextModal'
 import Modal from './Modal'
 import { useContextWindow } from '../hooks/useContextWindow'
 import type { TurnMode } from '@shared/types'
@@ -47,8 +49,6 @@ const TOGGLES: ToggleDef[] = [
   }
 ]
 
-const GITHUB_MODES_URL = 'https://github.com/search?q=claude%20code%20mode&type=repositories'
-
 type Props = {
   conversationId: string | null
   disabled: boolean
@@ -62,6 +62,7 @@ export default function Composer({
   onSubmit,
   onCompress
 }: Props): React.JSX.Element {
+  const queryClient = useQueryClient()
   const contextQuery = useContextWindow(conversationId)
   const [value, setValue] = useState('')
   const [modes, setModes] = useState<Record<ToggleKey, boolean>>({
@@ -72,6 +73,9 @@ export default function Composer({
   const [modesOpen, setModesOpen] = useState(false)
   const [compressing, setCompressing] = useState(false)
   const [compressError, setCompressError] = useState<string | null>(null)
+  const [planResetPending, setPlanResetPending] = useState(false)
+  const [githubOpen, setGithubOpen] = useState(false)
+  const wasDisabledRef = useRef(disabled)
   const ref = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -80,12 +84,22 @@ export default function Composer({
     ref.current.style.height = `${Math.min(ref.current.scrollHeight, 220)}px`
   }, [value])
 
+  // Plan mode is per-turn: clear it once the streaming turn it was sent in ends.
+  useEffect(() => {
+    if (wasDisabledRef.current && !disabled && planResetPending) {
+      setModes((prev) => ({ ...prev, plan: false }))
+      setPlanResetPending(false)
+    }
+    wasDisabledRef.current = disabled
+  }, [disabled, planResetPending])
+
   const activeModes = TOGGLES.filter((t) => modes[t.key])
 
   const handleSubmit = (): void => {
     const trimmed = value.trim()
     if (!trimmed || disabled) return
     const turnModes: TurnMode[] = activeModes.map((t) => t.key)
+    if (turnModes.includes('plan')) setPlanResetPending(true)
     onSubmit(trimmed, turnModes)
     setValue('')
   }
@@ -95,7 +109,8 @@ export default function Composer({
   }
 
   const handleAddFromGithub = (): void => {
-    window.open(GITHUB_MODES_URL, '_blank', 'noopener,noreferrer')
+    setModesOpen(false)
+    setGithubOpen(true)
   }
 
   const handleCompress = async (): Promise<void> => {
@@ -153,47 +168,38 @@ export default function Composer({
               model={contextQuery.data?.model}
               hasData={!!contextQuery.data && contextQuery.data.usedTokens > 0}
             />
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-end',
-                gap: '6px'
-              }}
+            <button
+              type="button"
+              className={`modes-trigger ${activeModes.length ? 'has-active' : ''}`}
+              onClick={() => setModesOpen(true)}
+              title="Open modes"
+              aria-haspopup="dialog"
+              aria-expanded={modesOpen}
             >
-              <button
-                type="button"
-                className={`modes-trigger ${activeModes.length ? 'has-active' : ''}`}
-                onClick={() => setModesOpen(true)}
-                title="Open modes"
-                aria-haspopup="dialog"
-                aria-expanded={modesOpen}
-              >
-                <SlidersHorizontal size={12} />
-                {activeModes.length === 0 ? (
-                  <span className="modes-trigger-label">Modes</span>
-                ) : (
-                  <span className="modes-trigger-chips">
-                    {activeModes.map((m) => (
-                      <span key={m.key} className="modes-trigger-chip">
-                        {m.icon}
-                        {m.label}
-                      </span>
-                    ))}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                className="send-btn"
-                onClick={handleSubmit}
-                disabled={disabled || !value.trim()}
-                title="Send"
-              >
-                <ArrowRight size={12} />
-                Send
-              </button>
-            </div>
+              <SlidersHorizontal size={12} />
+              {activeModes.length === 0 ? (
+                <span className="modes-trigger-label">Modes</span>
+              ) : (
+                <span className="modes-trigger-chips">
+                  {activeModes.map((m) => (
+                    <span key={m.key} className="modes-trigger-chip">
+                      {m.icon}
+                      {m.label}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              className="send-btn"
+              onClick={handleSubmit}
+              disabled={disabled || !value.trim()}
+              title="Send"
+            >
+              <ArrowRight size={12} />
+              Send
+            </button>
           </div>
         </div>
       </div>
@@ -225,10 +231,10 @@ export default function Composer({
                 <span className="glyph" aria-hidden="true">
                   {mode.icon}
                 </span>
-                <span>
-                  <span className="name">{mode.label}</span>
-                  <span className="desc">{mode.description}</span>
-                </span>
+                <div className="modes-row-text">
+                  <div className="name">{mode.label}</div>
+                  <div className="desc">{mode.description}</div>
+                </div>
                 <span className="toggle">
                   <input
                     type="checkbox"
@@ -264,6 +270,17 @@ export default function Composer({
           </button>
         </div>
       </Modal>
+      <GitHubContextModal
+        open={githubOpen}
+        conversationId={conversationId}
+        onClose={() => setGithubOpen(false)}
+        onIngested={() => {
+          if (conversationId) {
+            queryClient.invalidateQueries({ queryKey: ['context', conversationId] })
+            queryClient.invalidateQueries({ queryKey: ['conversations'] })
+          }
+        }}
+      />
     </div>
   )
 }

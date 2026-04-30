@@ -1,10 +1,86 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import SparkBars from './SparkBars'
 import ConversationDrillDown from './ConversationDrillDown'
+import ModelsPopover, { ALL_MODEL_IDS } from './ModelsPopover'
 import { useFinance, type FinanceWindow } from '../../hooks/useFinance'
-import { apiFetch } from '../../lib/api'
+import { apiFetch, getServerOrigin } from '../../lib/api'
 import { formatUsd } from '../../lib/format'
-import type { ConversationDTO } from '@shared/types'
+import type { ConversationDTO, UsageBucket } from '@shared/types'
+
+type CardGranularity = 'day' | 'hour'
+
+function formatBucketLabel(iso: string, granularity: CardGranularity): string {
+  const d = new Date(iso)
+  if (granularity === 'hour') {
+    return d.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric' })
+}
+
+function UsageCard({
+  label,
+  granularity,
+  bucket
+}: {
+  label: string
+  granularity: CardGranularity
+  bucket: UsageBucket
+}): React.JSX.Element {
+  const last = bucket.spark.length - 1
+  const [selected, setSelected] = useState<number | null>(null)
+  // Defensive clamp on render in case spark length changes after a refresh.
+  const clamped = selected != null && selected > last ? last : selected
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (last < 0) return
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      setSelected((i) => (i == null ? last : Math.max(0, i - 1)))
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      setSelected((i) => (i == null ? last : Math.min(last, i + 1)))
+    } else if (e.key === 'Escape') {
+      setSelected(null)
+    }
+  }
+
+  const cap =
+    clamped != null && bucket.bucketStarts[clamped]
+      ? formatBucketLabel(bucket.bucketStarts[clamped], granularity)
+      : label
+  const value = clamped != null ? (bucket.spark[clamped] ?? 0) : bucket.spendUsd
+
+  return (
+    <div
+      className="stat-card stat-card-interactive"
+      tabIndex={0}
+      role="group"
+      aria-label={label}
+      onKeyDown={onKeyDown}
+      onBlur={() => setSelected(null)}
+    >
+      <div className="stat-cap">{cap}</div>
+      <div className="stat-value" aria-live="polite">
+        {formatUsd(value)}
+      </div>
+      <div className="stat-sub">
+        <strong>{bucket.inTokens.toLocaleString()}</strong> in ·{' '}
+        <strong>{bucket.outTokens.toLocaleString()}</strong> out
+      </div>
+      <SparkBars
+        values={bucket.spark}
+        selectedIndex={clamped}
+        onSelect={(i) => setSelected(i)}
+      />
+    </div>
+  )
+}
 
 const MODEL_DOT_COLORS: Record<string, string> = {
   'claude-sonnet-4': 'var(--color-ink)',
@@ -26,19 +102,90 @@ const WINDOW_LABEL: Record<FinanceWindow, string> = {
   all: 'All time'
 }
 
+type ExportStatus = { kind: 'ok' | 'err'; message: string } | null
+
+function filenameFromDisposition(disposition: string | null): string | null {
+  if (!disposition) return null
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)
+  if (encoded?.[1]) {
+    try {
+      return decodeURIComponent(encoded[1])
+    } catch {
+      return encoded[1]
+    }
+  }
+  const quoted = /filename="([^"]+)"/i.exec(disposition)
+  if (quoted?.[1]) return quoted[1]
+  const bare = /filename=([^;]+)/i.exec(disposition)
+  return bare?.[1]?.trim() ?? null
+}
+
+function downloadCsv(blob: Blob, filename: string): void {
+  const href = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = href
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.setTimeout(() => URL.revokeObjectURL(href), 0)
+}
+
 export default function FinanceView({
   windowValue,
   setWindow,
   selectedConversationId,
   onClearSelection
 }: Props): React.JSX.Element {
-  const { data } = useFinance({ window: windowValue })
+  const [selectedModels, setSelectedModels] = useState<string[]>(ALL_MODEL_IDS)
+  const [exporting, setExporting] = useState(false)
+  const [exportStatus, setExportStatus] = useState<ExportStatus>(null)
+  const { data } = useFinance({ window: windowValue, models: selectedModels })
   const conversationsQuery = useQuery({
     queryKey: ['conversations'],
     queryFn: () => apiFetch<ConversationDTO[]>('/api/sessions')
   })
   const conversation =
     conversationsQuery.data?.find((c) => c._id === selectedConversationId) ?? null
+
+  const exportCsv = async (): Promise<void> => {
+    setExportStatus(null)
+    setExporting(true)
+    try {
+      const origin = await getServerOrigin()
+      if (!origin) throw new Error('Server not reachable.')
+
+      const params = new URLSearchParams()
+      if (selectedConversationId) {
+        params.set('conversationId', selectedConversationId)
+      } else {
+        params.set('window', windowValue)
+        if (selectedModels.length > 0 && selectedModels.length < ALL_MODEL_IDS.length) {
+          params.set('models', selectedModels.join(','))
+        }
+      }
+
+      const query = params.toString()
+      const res = await fetch(`${origin}/api/usage/export.csv${query ? `?${query}` : ''}`)
+      if (!res.ok) {
+        throw new Error(`Export failed (${res.status}).`)
+      }
+
+      const blob = await res.blob()
+      const filename =
+        filenameFromDisposition(res.headers.get('Content-Disposition')) ??
+        `agentui-usage-${selectedConversationId ? 'conversation' : windowValue}.csv`
+      downloadCsv(blob, filename)
+      setExportStatus({ kind: 'ok', message: 'CSV downloaded.' })
+    } catch (error) {
+      setExportStatus({
+        kind: 'err',
+        message: error instanceof Error ? error.message : 'Export failed.'
+      })
+    } finally {
+      setExporting(false)
+    }
+  }
 
   return (
     <section className="settings-section">
@@ -47,10 +194,16 @@ export default function FinanceView({
           <div className="settings-title">Finance</div>
           <div className="chrome" style={{ marginTop: 4 }}>
             local meter · aggregated from this device
+            {exportStatus && (
+              <span style={{ color: exportStatus.kind === 'err' ? 'var(--color-error)' : undefined }}>
+                {' '}
+                · {exportStatus.message}
+              </span>
+            )}
           </div>
         </div>
         <div className="chips">
-          <span className="chip">claude · all models</span>
+          <ModelsPopover selected={selectedModels} onChange={setSelectedModels} />
           <select
             className="select"
             value={windowValue}
@@ -66,11 +219,10 @@ export default function FinanceView({
           <button
             type="button"
             className="btn-secondary"
-            onClick={() => {
-              // TODO: export usage CSV when /api/usage exists.
-            }}
+            onClick={exportCsv}
+            disabled={exporting}
           >
-            Export CSV
+            {exporting ? 'Exporting...' : 'Export CSV'}
           </button>
         </div>
       </header>
@@ -95,33 +247,21 @@ export default function FinanceView({
             </div>
 
             <div className="stat-grid">
-              <div className="stat-card">
-                <div className="stat-cap">Total · {WINDOW_LABEL[windowValue]}</div>
-                <div className="stat-value">{formatUsd(data.totals.spendUsd)}</div>
-                <div className="stat-sub">
-                  <strong>{data.totals.inTokens.toLocaleString()}</strong> in ·{' '}
-                  <strong>{data.totals.outTokens.toLocaleString()}</strong> out
-                </div>
-                <SparkBars values={data.totals.spark} />
-              </div>
-              <div className="stat-card">
-                <div className="stat-cap">Today</div>
-                <div className="stat-value">{formatUsd(data.today.spendUsd)}</div>
-                <div className="stat-sub">
-                  <strong>{data.today.inTokens.toLocaleString()}</strong> in ·{' '}
-                  <strong>{data.today.outTokens.toLocaleString()}</strong> out
-                </div>
-                <SparkBars values={data.today.spark} />
-              </div>
-              <div className="stat-card">
-                <div className="stat-cap">Last hour</div>
-                <div className="stat-value">{formatUsd(data.lastHour.spendUsd)}</div>
-                <div className="stat-sub">
-                  <strong>{data.lastHour.inTokens.toLocaleString()}</strong> in ·{' '}
-                  <strong>{data.lastHour.outTokens.toLocaleString()}</strong> out
-                </div>
-                <SparkBars values={data.lastHour.spark} />
-              </div>
+              <UsageCard
+                label="Monthly · last 30 days"
+                granularity="day"
+                bucket={data.monthly}
+              />
+              <UsageCard
+                label="Weekly · last 7 days"
+                granularity="day"
+                bucket={data.weekly}
+              />
+              <UsageCard
+                label="Hourly · last 24 hours"
+                granularity="hour"
+                bucket={data.hourly}
+              />
             </div>
 
             <div className="breakdown-card">

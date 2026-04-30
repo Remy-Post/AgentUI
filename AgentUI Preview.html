@@ -26,6 +26,7 @@
         --color-tool-bg: #f1ebd9;
         --color-error: #8a2f2a;
         --color-error-bg: #f4dfdc;
+        --color-error-border: rgba(138, 47, 42, 0.2);
         --color-good: #047857;
         --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -305,19 +306,24 @@
       }
       .composer-input::placeholder { color: var(--color-muted); }
       .composer-row {
-        display: flex; align-items: center; justify-content: space-between;
+        display: flex; align-items: flex-end; justify-content: space-between;
         padding: 6px 14px 12px;
+        gap: 12px;
       }
       .send-btn {
         display: inline-flex; align-items: center; gap: 8px;
-        padding: 6px 14px; border-radius: 8px;
+        height: 30px; padding: 0 14px; border-radius: 8px;
         background: var(--color-ink); color: var(--color-paper);
         font-family: var(--font-mono); font-size: 11px;
         text-transform: uppercase; letter-spacing: 0.06em;
+        white-space: nowrap; flex: 0 0 auto;
       }
 
       /* Composer right cluster: context disk + send */
-      .composer-actions { display: inline-flex; align-items: center; gap: 10px; }
+      .composer-actions {
+        display: inline-flex; align-items: center; justify-content: flex-end;
+        gap: 8px; row-gap: 6px; flex: 0 1 auto; min-width: 0; flex-wrap: wrap;
+      }
 
       /* Context disk */
       .ctx-disk {
@@ -329,6 +335,7 @@
         border-radius: 999px;
         cursor: default;
         transition: border-color .12s, background .12s;
+        flex: 0 0 auto;
       }
       .ctx-disk:hover { border-color: var(--color-line-3, var(--color-ink-3)); background: var(--color-active); }
       .ctx-disk svg { width: 18px; height: 18px; display: block; }
@@ -496,19 +503,14 @@
         box-shadow: 0 12px 32px -12px rgba(26, 25, 22, 0.22), 0 4px 10px -4px rgba(26, 25, 22, 0.12);
       }
       .jump-tab {
-        display: inline-flex; align-items: center; gap: 6px;
-        padding: 7px 14px; border-radius: 999px;
-        font-family: var(--font-mono); font-size: 11px;
-        text-transform: uppercase; letter-spacing: 0.06em;
+        display: inline-flex; align-items: center; justify-content: center;
+        padding: 7px 12px; border-radius: 999px;
         color: var(--color-muted-2);
         transition: background .15s, color .15s;
       }
       .jump-tab:hover { color: var(--color-ink); background: rgba(229, 224, 210, 0.5); }
       .jump-tab.active { background: var(--color-ink); color: var(--color-paper); }
       .jump-tab svg { width: 12px; height: 12px; }
-      .jump-tab .kbd {
-        font-size: 9px; opacity: 0.6; margin-left: 2px;
-      }
 
       /* ============================================== */
       /*  SETTINGS PANEL (and Finance / Tools / etc.)    */
@@ -542,6 +544,85 @@
       .pane-head { margin-bottom: 20px; }
       .pane-title { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; color: var(--color-ink); }
       .pane-sub { color: var(--color-ink-3); font-size: 13px; margin-top: 4px; line-height: 1.55; }
+
+      /* Logs / Memory */
+      .logs-body { padding: 24px 28px; }
+      .logs-errors { max-width: 1120px; margin-bottom: 18px; }
+      .logs-empty-state {
+        border: 1px solid var(--color-line); border-radius: 8px;
+        background: var(--color-paper); padding: 14px 16px;
+      }
+      .logs-error-list { display: grid; gap: 8px; }
+      .log-alert {
+        display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px;
+        align-items: flex-start; border: 1px solid var(--color-error-border);
+        border-radius: 8px; background: var(--color-error-bg);
+        padding: 10px 12px; color: var(--color-error);
+      }
+      .log-alert-main { min-width: 0; }
+      .log-alert-head {
+        display: flex; justify-content: space-between; gap: 12px;
+        font-family: var(--font-mono); font-size: 11px; color: var(--color-error);
+      }
+      .log-alert-message {
+        margin-top: 3px; color: var(--color-ink-2); font-family: var(--font-mono);
+        font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere;
+      }
+      .logs-grid {
+        max-width: 1120px; display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 14px; align-items: start;
+      }
+      .log-card {
+        min-width: 0; border: 1px solid var(--color-line);
+        border-radius: 8px; background: var(--color-paper); overflow: hidden;
+      }
+      .log-card-head {
+        min-height: 58px; display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--color-line);
+      }
+      .log-card-title { font-size: 14px; font-weight: 600; color: var(--color-ink); }
+      .log-source-toggle {
+        display: inline-flex; gap: 2px; padding: 3px;
+        border: 1px solid var(--color-line); border-radius: 999px;
+        background: var(--color-paper-2); flex-shrink: 0;
+      }
+      .log-source-toggle button {
+        padding: 5px 9px; border-radius: 999px; font-family: var(--font-mono);
+        font-size: 11px; color: var(--color-muted-2);
+      }
+      .log-source-toggle button.active { color: var(--color-paper); background: var(--color-ink); }
+      .log-list { height: min(56vh, 520px); overflow: auto; }
+      .log-row {
+        display: grid; grid-template-columns: 72px 52px minmax(0, 1fr); gap: 10px;
+        padding: 8px 12px; border-bottom: 1px solid rgba(226, 221, 210, 0.72);
+        align-items: start;
+      }
+      .log-time, .log-level, .log-message, .log-meta {
+        font-family: var(--font-mono); font-size: 11px;
+      }
+      .log-time { color: var(--color-muted); font-variant-numeric: tabular-nums; }
+      .log-level { color: var(--color-muted-2); text-transform: uppercase; }
+      .log-level.error { color: var(--color-error); }
+      .log-level.warning { color: var(--color-tool); }
+      .log-message {
+        color: var(--color-ink-2); line-height: 1.5;
+        white-space: pre-wrap; overflow-wrap: anywhere;
+      }
+      .log-meta { grid-column: 3; color: var(--color-muted); overflow-wrap: anywhere; }
+      .log-empty {
+        min-height: 180px; display: grid; place-items: center;
+        padding: 24px;
+      }
+      .memory-body { display: grid; min-height: 0; }
+      .memory-placeholder {
+        min-height: min(420px, calc(100vh - 160px));
+        display: grid; place-items: center;
+      }
+      .memory-status { color: var(--color-ink-3); font-size: 15px; font-weight: 600; }
+      @media (max-width: 1100px) {
+        .logs-grid { grid-template-columns: 1fr; }
+      }
 
       .field { margin-bottom: 18px; }
       .field-label {
@@ -795,17 +876,20 @@
     <!--  FLOATING JUMP NAV                                  -->
     <!-- =================================================== -->
     <nav class="jump-nav" aria-label="Jump between views">
-      <button class="jump-tab active" data-view="chat" type="button">
+      <button class="jump-tab active" data-view="chat" type="button" aria-label="Chat view" title="Chat (1)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/></svg>
-        Chat
       </button>
-      <button class="jump-tab" data-view="finance" type="button">
+      <button class="jump-tab" data-view="finance" type="button" aria-label="Finance view" title="Finance (2)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-        Finance
       </button>
-      <button class="jump-tab" data-view="settings" type="button">
+      <button class="jump-tab" data-view="settings" type="button" aria-label="Settings view" title="Settings (3)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
-        Settings
+      </button>
+      <button class="jump-tab" data-view="logs" type="button" aria-label="Logs view" title="Logs (4)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2h4"/></svg>
+      </button>
+      <button class="jump-tab" data-view="memory" type="button" aria-label="Memory view" title="Memory (5)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-6 .1 4 4 0 0 0-2.5 5.8 4 4 0 0 0 .5 6.6A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 6 .1 4 4 0 0 1 2.5 5.8 4 4 0 0 1-.5 6.6A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/></svg>
       </button>
     </nav>
 
@@ -924,8 +1008,8 @@
         </ul>
 
         <div class="sidebar-foot">
-          <span class="chrome">claude-sonnet-4</span>
-          <span class="chrome status-dot">connected</span>
+          <span class="chrome">sonnet</span>
+          <span class="chrome status-dot" aria-label="Server status: connected" title="Server status: connected"></span>
         </div>
       </aside>
 
@@ -1219,8 +1303,8 @@
           </li>
         </ul>
         <div class="sidebar-foot">
-          <span class="chrome">claude-sonnet-4</span>
-          <span class="chrome status-dot">connected</span>
+          <span class="chrome">sonnet</span>
+          <span class="chrome status-dot" aria-label="Server status: connected" title="Server status: connected"></span>
         </div>
       </aside>
 
@@ -1414,7 +1498,7 @@
           </div>
         </div>
 
-        <!-- DEFAULT recents (Settings / Tools / API key) -->
+        <!-- DEFAULT recents (Settings / Tools / Keys) -->
         <div class="sidebar-context" data-ctx="default" style="display: contents;">
           <div class="recent-cap" style="padding-top: 16px;"><span class="cap">Recent</span></div>
           <ul class="conv-list">
@@ -1451,8 +1535,8 @@
         </div>
 
         <div class="sidebar-foot">
-          <span class="chrome">claude-sonnet-4</span>
-          <span class="chrome status-dot">connected</span>
+          <span class="chrome">sonnet</span>
+          <span class="chrome status-dot" aria-label="Server status: connected" title="Server status: connected"></span>
         </div>
       </aside>
 
@@ -1463,7 +1547,7 @@
         </header>
 
         <nav class="settings-tabs">
-          <button class="settings-tab active" data-tab="api">API key</button>
+          <button class="settings-tab active" data-tab="api">Keys</button>
           <button class="settings-tab" data-tab="model">Model</button>
           <button class="settings-tab" data-tab="subagents">Subagents</button>
           <button class="settings-tab" data-tab="skills">Skills</button>
@@ -1577,6 +1661,145 @@
             <div class="tool-groups" id="tools-list"></div>
           </div>
 
+        </div>
+      </section>
+    </div>
+
+    <!-- =================================================== -->
+    <!--  LOGS VIEW                                          -->
+    <!-- =================================================== -->
+    <div class="frame settings" id="view-logs" style="grid-template-columns: 288px 1fr; display: none;">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-left">
+            <div class="brand-mark">A</div>
+            <div>
+              <div class="brand-name">Agent Desk</div>
+              <div class="chrome">local · v1</div>
+            </div>
+          </div>
+        </div>
+        <div class="sidebar-main">
+          <div class="recent-cap" style="padding-top: 16px;"><span class="cap">Diagnostics</span></div>
+          <ul class="conv-list">
+            <li class="conv-item active">
+              <div class="dot"></div>
+              <div>
+                <div class="conv-row"><div class="conv-title">Current session</div></div>
+                <div class="conv-meta"><span class="chrome">errors · server · client</span></div>
+              </div>
+            </li>
+          </ul>
+        </div>
+        <div class="sidebar-foot">
+          <span class="chrome">logs</span><span class="status-dot"><span class="status-label">connected</span></span>
+        </div>
+      </aside>
+
+      <section class="settings-section">
+        <header class="settings-header">
+          <div>
+            <h2 class="settings-title">Logs</h2>
+            <div class="chrome">current session</div>
+          </div>
+        </header>
+        <div class="settings-body logs-body">
+          <section class="logs-errors" aria-label="Current errors">
+            <div class="pane-head">
+              <div class="pane-title">Errors</div>
+              <div class="pane-sub">1 current</div>
+            </div>
+            <div class="logs-error-list">
+              <div class="log-alert">
+                <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                <div class="log-alert-main">
+                  <div class="log-alert-head"><span>Renderer</span><time>21:42:18</time></div>
+                  <div class="log-alert-message">request_failed_503_db_unavailable</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div class="logs-grid">
+            <section class="log-card">
+              <header class="log-card-head">
+                <div>
+                  <div class="log-card-title">Server</div>
+                  <div class="chrome">4 lines</div>
+                </div>
+              </header>
+              <div class="log-list">
+                <div class="log-row info"><span class="log-time">21:42:20</span><span class="log-level info">info</span><div class="log-message">[server] listening on http://127.0.0.1:3001</div></div>
+                <div class="log-row warning"><span class="log-time">21:42:19</span><span class="log-level warning">warn</span><div class="log-message">GitHub token sync failed with status 401</div></div>
+                <div class="log-row error"><span class="log-time">21:42:18</span><span class="log-level error">error</span><div class="log-message">[server] startup error: db_unavailable</div></div>
+                <div class="log-row debug"><span class="log-time">21:42:15</span><span class="log-level debug">debug</span><div class="log-message">scaffold sync skipped</div></div>
+              </div>
+            </section>
+
+            <section class="log-card">
+              <header class="log-card-head">
+                <div>
+                  <div class="log-card-title">Client</div>
+                  <div class="chrome">renderer · 3 lines</div>
+                </div>
+                <div class="log-source-toggle" aria-label="Client log source">
+                  <button class="active" type="button">Renderer</button>
+                  <button type="button">Main</button>
+                </div>
+              </header>
+              <div class="log-list">
+                <div class="log-row error"><span class="log-time">21:42:18</span><span class="log-level error">error</span><div class="log-message">request_failed_503_db_unavailable</div><div class="log-meta">sourceId: renderer/App.tsx · lineNumber: 96</div></div>
+                <div class="log-row info"><span class="log-time">21:42:16</span><span class="log-level info">info</span><div class="log-message">Connecting to server...</div></div>
+                <div class="log-row debug"><span class="log-time">21:42:15</span><span class="log-level debug">debug</span><div class="log-message">renderer boot</div></div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- =================================================== -->
+    <!--  MEMORY VIEW                                        -->
+    <!-- =================================================== -->
+    <div class="frame settings" id="view-memory" style="grid-template-columns: 288px 1fr; display: none;">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-left">
+            <div class="brand-mark">A</div>
+            <div>
+              <div class="brand-name">Agent Desk</div>
+              <div class="chrome">local · v1</div>
+            </div>
+          </div>
+        </div>
+        <div class="sidebar-main">
+          <div class="recent-cap" style="padding-top: 16px;"><span class="cap">Memory</span></div>
+          <ul class="conv-list">
+            <li class="conv-item active">
+              <div class="dot"></div>
+              <div>
+                <div class="conv-row"><div class="conv-title">Coming soon</div></div>
+                <div class="conv-meta"><span class="chrome">page 5</span></div>
+              </div>
+            </li>
+          </ul>
+        </div>
+        <div class="sidebar-foot">
+          <span class="chrome">memory</span><span class="status-dot"><span class="status-label">connected</span></span>
+        </div>
+      </aside>
+
+      <section class="settings-section">
+        <header class="settings-header">
+          <div>
+            <h2 class="settings-title">Memory</h2>
+            <div class="chrome">coming soon</div>
+          </div>
+        </header>
+        <div class="settings-body memory-body">
+          <div class="memory-placeholder">
+            <div class="memory-status">Coming soon</div>
+          </div>
         </div>
       </section>
     </div>
@@ -2013,27 +2236,33 @@
       settingsTabs.forEach((t) => t.addEventListener('click', () => showSettingsTab(t.dataset.tab)))
 
       // ============================================================
-      //   JUMP NAV — chat / finance / settings
+      //   JUMP NAV — chat / finance / settings / logs / memory
       // ============================================================
       const jumpButtons = document.querySelectorAll('.jump-tab')
-      const chatView = document.getElementById('view-chat')
-      const financeView = document.getElementById('view-finance')
-      const settingsView = document.getElementById('view-settings')
+      const viewFrames = {
+        chat: document.getElementById('view-chat'),
+        finance: document.getElementById('view-finance'),
+        settings: document.getElementById('view-settings'),
+        logs: document.getElementById('view-logs'),
+        memory: document.getElementById('view-memory')
+      }
 
       function showView(view) {
         jumpButtons.forEach((b) => b.classList.toggle('active', b.dataset.view === view))
-        chatView.style.display = view === 'chat' ? '' : 'none'
-        financeView.style.display = view === 'finance' ? 'grid' : 'none'
-        settingsView.style.display = view === 'settings' ? 'grid' : 'none'
+        Object.entries(viewFrames).forEach(([name, frame]) => {
+          frame.style.display = name === view ? (name === 'chat' ? '' : 'grid') : 'none'
+        })
       }
       jumpButtons.forEach((b) => b.addEventListener('click', () => showView(b.dataset.view)))
 
-      // Keyboard: 1/2/3 jump (when not in input)
+      // Keyboard: 1/2/3/4/5 jump (when not in input)
       window.addEventListener('keydown', (e) => {
         if (e.target.matches('input, textarea, select')) return
         if (e.key === '1') showView('chat')
         if (e.key === '2') showView('finance')
         if (e.key === '3') showView('settings')
+        if (e.key === '4') showView('logs')
+        if (e.key === '5') showView('memory')
       })
 
       // ============================================================

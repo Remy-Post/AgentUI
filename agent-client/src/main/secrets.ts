@@ -2,7 +2,10 @@ import { app, safeStorage } from 'electron'
 import { promises as fs } from 'fs'
 import { join } from 'path'
 
-type SecretsBlob = { ANTHROPIC_API_KEY?: string }
+type SecretsBlob = {
+  ANTHROPIC_API_KEY?: string
+  GITHUB_TOKEN?: string
+}
 
 function secretsPath(): string {
   return join(app.getPath('userData'), 'secrets.bin')
@@ -46,4 +49,16 @@ export async function setApiKey(
 export async function hasApiKey(): Promise<boolean> {
   const current = await readSecrets()
   return Boolean(current.ANTHROPIC_API_KEY)
+}
+
+export async function setGitHubToken(
+  token: string
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const current = await readSecrets()
+  return writeSecrets({ ...current, GITHUB_TOKEN: token })
+}
+
+export async function hasGitHubToken(): Promise<boolean> {
+  const current = await readSecrets()
+  return Boolean(current.GITHUB_TOKEN)
 }

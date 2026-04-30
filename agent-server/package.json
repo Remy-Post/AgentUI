@@ -21,6 +21,7 @@
     "@anthropic-ai/claude-agent-sdk": "^0.2.114",
     "@googleworkspace/cli": "^0.22.5",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@octokit/rest": "^22.0.1",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^5.1.0",

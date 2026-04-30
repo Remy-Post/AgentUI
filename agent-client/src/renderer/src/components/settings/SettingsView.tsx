@@ -16,7 +16,7 @@ const LEFT_TABS: Array<{ id: SettingsTab; label: string }> = [
 
 const RIGHT_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'tools', label: 'Tools' },
-  { id: 'api', label: 'API key' },
+  { id: 'api', label: 'Keys' },
   { id: 'conversations', label: 'All conversations' }
 ]
 

@@ -120,7 +120,6 @@ export default function SettingsSidebar({
     return (
       <Sidebar
         mode="settings-skills"
-        footLabel="settings"
         bodySlot={<EntityList kind="skill" />}
         collapsed={collapsed}
         onToggleCollapsed={onToggleCollapsed}
@@ -131,7 +130,6 @@ export default function SettingsSidebar({
     return (
       <Sidebar
         mode="settings-subagents"
-        footLabel="settings"
         bodySlot={<EntityList kind="subagent" />}
         collapsed={collapsed}
         onToggleCollapsed={onToggleCollapsed}

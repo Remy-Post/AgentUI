@@ -11,6 +11,8 @@ import type { ConversationDTO } from '@shared/types'
 export type SidebarMode =
   | 'chat'
   | 'finance'
+  | 'logs'
+  | 'memory'
   | 'settings-default'
   | 'settings-skills'
   | 'settings-subagents'
@@ -23,8 +25,14 @@ type Props = {
   onToggleCollapsed?: () => void
   /** Optional override for the recent conversations body (used by finance mode). */
   bodySlot?: React.ReactNode
-  /** Optional footer label override (e.g., 'finance' or model name). */
+  /** Optional footer label override. Model IDs are reduced to their family. */
   footLabel?: string
+}
+
+function modelFamilyFromLabel(label: string | undefined): string {
+  if (!label) return 'sonnet'
+  const match = label.match(/\b(opus|sonnet|haiku)\b/i)
+  return match ? match[1].toLowerCase() : label
 }
 
 function ChatSidebarBody({
@@ -128,8 +136,8 @@ export default function Sidebar({
 }: Props): React.JSX.Element {
   const version = useAppVersion()
   const { data: settings } = useSettings()
-  const fallbackFoot = settings?.defaultModelId ?? 'claude-sonnet-4-6'
-  const footText = footLabel ?? fallbackFoot
+  const fallbackFoot = settings?.defaultModel ?? settings?.defaultModelId ?? 'sonnet'
+  const footText = modelFamilyFromLabel(footLabel ?? fallbackFoot)
 
   const showRecentList = mode === 'chat' || mode === 'settings-default'
 

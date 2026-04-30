@@ -4,6 +4,8 @@ import { Conversation } from '../db/models/Conversation.ts'
 import { Message } from '../db/models/Message.ts'
 import { Tool } from '../db/models/Tool.ts'
 import { Settings } from '../db/models/Settings.ts'
+import { GitHubRepositoryChunk } from '../db/models/GitHubRepositoryChunk.ts'
+import { GitHubRepositorySource } from '../db/models/GitHubRepositorySource.ts'
 import { dropSession, isStreaming } from '../agent/session.ts'
 import { compressConversation } from '../agent/orchestration/compress.ts'
 import { normalizeModelClass, resolveContextWindow, resolveLatestModelId } from '../../util/vars.ts'
@@ -67,14 +69,23 @@ router.patch('/:id', async (req, res) => {
 
 router.post('/:id/compress', async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'invalid_id' })
-  const conversation = await Conversation.findById(req.params.id).lean<{ model?: string } | null>()
+  const conversation = await Conversation.findById(req.params.id).lean<{
+    model?: string
+    sdkSessionId?: string
+  } | null>()
   if (!conversation) return res.status(404).json({ error: 'not_found' })
   if (isStreaming(req.params.id)) return res.status(409).json({ error: 'stream_in_progress' })
   const model = typeof conversation.model === 'string' ? conversation.model : ''
   if (!model) return res.status(400).json({ error: 'no_model' })
+  const sdkSessionId = typeof conversation.sdkSessionId === 'string' ? conversation.sdkSessionId : ''
+  if (!sdkSessionId) return res.status(400).json({ error: 'no_sdk_session' })
 
   try {
-    const result = await compressConversation({ conversationId: req.params.id, conversationModel: model })
+    const result = await compressConversation({
+      conversationId: req.params.id,
+      conversationModel: model,
+      sdkSessionId,
+    })
     const dto: CompressResponse = {
       status: 'ok',
       summaryMessageId: result.summaryMessageId,
@@ -92,6 +103,8 @@ router.delete('/:id', async (req, res) => {
   await Promise.all([
     Conversation.deleteOne({ _id: req.params.id }),
     Message.deleteMany({ conversationId: req.params.id }),
+    GitHubRepositoryChunk.deleteMany({ conversationId: req.params.id }),
+    GitHubRepositorySource.deleteMany({ conversationId: req.params.id }),
   ])
   dropSession(req.params.id)
   return res.status(204).end()
@@ -109,8 +122,8 @@ router.get('/:id/messages', async (req, res) => {
 // attribute that volume to the categories the wireframe shows: system prompt
 // is approximated from the first turn's cacheCreationInputTokens (which on
 // turn one is dominated by system+tools+initial user msg), tools is
-// estimated from enabled-tool count, messages is the remainder, and files
-// is zero because AgentUI does not yet support attachments.
+// estimated from enabled-tool count, GitHub repository chunks are approximated
+// from stored character counts, and messages are the remainder.
 //
 // Context-window source of truth: result.modelUsage[model].contextWindow,
 // captured per top-level assistant message at result time. The per-model
@@ -159,7 +172,7 @@ router.get('/:id/context', async (req, res) => {
     inputTokens: { $exists: true },
   }
 
-  const [latest, first, enabledToolCount, settingsDoc] = await Promise.all([
+  const [latest, first, enabledToolCount, settingsDoc, githubChunkTotals] = await Promise.all([
     Message.findOne(tokenedFilter)
       .sort({ createdAt: -1 })
       .lean<{
@@ -176,6 +189,10 @@ router.get('/:id/context', async (req, res) => {
       .lean<{ cacheCreationInputTokens?: number } | null>(),
     Tool.countDocuments({ enabled: true }),
     Settings.findOne({ key: 'global' }).lean<{ useOneMillionContext?: boolean } | null>(),
+    GitHubRepositoryChunk.aggregate<{ chars: number }>([
+      { $match: { conversationId: new mongoose.Types.ObjectId(req.params.id) } },
+      { $group: { _id: null, chars: { $sum: '$charCount' } } },
+    ]),
   ])
 
   const conversationModel = typeof conversation.model === 'string' ? conversation.model : 'unknown'
@@ -198,7 +215,8 @@ router.get('/:id/context', async (req, res) => {
     0,
     firstCacheCreation - toolTokens - FIRST_USER_MSG_ESTIMATE_TOKENS,
   )
-  const fileTokens = 0
+  const fileChars = githubChunkTotals[0]?.chars ?? 0
+  const fileTokens = Math.ceil(fileChars / 4)
   const messageTokens = Math.max(0, usedTokens - systemTokens - toolTokens - fileTokens)
 
   const dto: ContextDTO = {

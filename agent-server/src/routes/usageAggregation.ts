@@ -8,20 +8,20 @@ export type SparkSpec = {
   bucketCount: number
 }
 
-export type AggregationPipelines = {
-  totals: Record<string, unknown>[]
-  today: Record<string, unknown>[]
-  lastHour: Record<string, unknown>[]
+export type WindowAggregationPipelines = {
   byModel: Record<string, unknown>[]
   recentRuns: Record<string, unknown>[]
-  sparkTotals: Record<string, unknown>[]
-  sparkToday: Record<string, unknown>[]
-  sparkHour: Record<string, unknown>[]
-  // Specs for the JS pad helper to fill missing buckets after the pipeline runs.
-  sparkSpecs: { totals: SparkSpec; today: SparkSpec; lastHour: SparkSpec }
   windowSince: Date | null
-  todaySince: Date
-  lastHourSince: Date
+}
+
+export type CardAggregationPipelines = {
+  monthlyTotals: Record<string, unknown>[]
+  monthlySpark: Record<string, unknown>[]
+  weeklyTotals: Record<string, unknown>[]
+  weeklySpark: Record<string, unknown>[]
+  hourlyTotals: Record<string, unknown>[]
+  hourlySpark: Record<string, unknown>[]
+  cardSpecs: { monthly: SparkSpec; weekly: SparkSpec; hourly: SparkSpec }
 }
 
 const HOUR_MS = 60 * 60 * 1000
@@ -40,27 +40,14 @@ export function windowSince(window: UsageWindow, now: Date): Date | null {
   }
 }
 
-export function totalsSparkSpec(window: UsageWindow): SparkSpec {
-  switch (window) {
-    // 24h window: 24 hourly bars cover the full day at one tick per hour.
-    case '24h':
-      return { unit: 'hour', binSize: 1, bucketCount: 24 }
-    // 7d / 30d: daily bars; one bar per day. 7d short-form, 30d full month.
-    case '7d':
-      return { unit: 'day', binSize: 1, bucketCount: 7 }
-    case '30d':
-      return { unit: 'day', binSize: 1, bucketCount: 30 }
-    // all-time: monthly bars, capped at 24 months so the bar count stays useful.
-    case 'all':
-      return { unit: 'month', binSize: 1, bucketCount: 24 }
-  }
-}
-
-// Today: 12 bars of 2 hours each, covering the trailing 24 hours.
-export const todaySparkSpec: SparkSpec = { unit: 'hour', binSize: 2, bucketCount: 12 }
-
-// LastHour: 12 bars of 5 minutes each, covering the trailing 60 minutes.
-export const lastHourSparkSpec: SparkSpec = { unit: 'minute', binSize: 5, bucketCount: 12 }
+// Fixed-shape card specs. The Finance page renders three usage cards whose
+// layout is independent of the window dropdown:
+//   Monthly = trailing 30 days, one bar per day
+//   Weekly  = trailing 7 days,  one bar per day
+//   Hourly  = trailing 24 hours, one bar per hour
+export const monthlySparkSpec: SparkSpec = { unit: 'day', binSize: 1, bucketCount: 30 }
+export const weeklySparkSpec: SparkSpec = { unit: 'day', binSize: 1, bucketCount: 7 }
+export const hourlySparkSpec: SparkSpec = { unit: 'hour', binSize: 1, bucketCount: 24 }
 
 function matchAssistantInWindow(since: Date | null): Record<string, unknown> {
   const createdAt: Record<string, unknown> = {}
@@ -68,6 +55,11 @@ function matchAssistantInWindow(since: Date | null): Record<string, unknown> {
   const match: Record<string, unknown> = { role: 'assistant' }
   if (since) match.createdAt = createdAt
   return match
+}
+
+function modelMatchStage(models: string[] | undefined): Record<string, unknown>[] {
+  if (!models || models.length === 0) return []
+  return [{ $match: { model: { $in: models } } }]
 }
 
 function bucketGroupStage(unit: SparkUnit, binSize: number): Record<string, unknown> {
@@ -104,32 +96,12 @@ function totalsGroupStage(): Record<string, unknown> {
   }
 }
 
-export function buildUsageAggregationPipelines(
+export function buildWindowAggregationPipelines(
   window: UsageWindow,
   now: Date,
-): AggregationPipelines {
+  models?: string[],
+): WindowAggregationPipelines {
   const since = windowSince(window, now)
-  const todaySince = new Date(now.getTime() - 24 * HOUR_MS)
-  const lastHourSince = new Date(now.getTime() - 60 * 60 * 1000)
-  const sparkTotals = totalsSparkSpec(window)
-
-  const totals: Record<string, unknown>[] = [
-    { $match: matchAssistantInWindow(since) },
-    totalsGroupStage(),
-    { $project: { _id: 0, spendUsd: 1, inTokens: 1, outTokens: 1 } },
-  ]
-
-  const today: Record<string, unknown>[] = [
-    { $match: matchAssistantInWindow(todaySince) },
-    totalsGroupStage(),
-    { $project: { _id: 0, spendUsd: 1, inTokens: 1, outTokens: 1 } },
-  ]
-
-  const lastHour: Record<string, unknown>[] = [
-    { $match: matchAssistantInWindow(lastHourSince) },
-    totalsGroupStage(),
-    { $project: { _id: 0, spendUsd: 1, inTokens: 1, outTokens: 1 } },
-  ]
 
   const byModel: Record<string, unknown>[] = [
     {
@@ -138,6 +110,7 @@ export function buildUsageAggregationPipelines(
         model: { $exists: true, $type: 'string' },
       },
     },
+    ...modelMatchStage(models),
     {
       $group: {
         _id: '$model',
@@ -156,6 +129,7 @@ export function buildUsageAggregationPipelines(
   // matching how the Finance view treats "runs".
   const recentRuns: Record<string, unknown>[] = [
     { $match: matchAssistantInWindow(since) },
+    ...modelMatchStage(models),
     { $sort: { createdAt: -1 } },
     { $limit: 12 },
     {
@@ -189,37 +163,44 @@ export function buildUsageAggregationPipelines(
     },
   ]
 
-  const sparkTotalsPipeline: Record<string, unknown>[] = [
+  return { byModel, recentRuns, windowSince: since }
+}
+
+// Builds the six aggregations behind the three Finance cards. Each card needs
+// one totals query (aggregate spend/tokens over the trailing window) and one
+// spark query (per-bucket spend for the bars). Bucket boundaries are UTC,
+// matching the rest of usageAggregation.ts; the renderer formats labels with
+// the user's local TZ via Intl.DateTimeFormat.
+export function buildCardAggregationPipelines(
+  now: Date,
+  models?: string[],
+): CardAggregationPipelines {
+  const monthlySince = new Date(now.getTime() - 30 * DAY_MS)
+  const weeklySince = new Date(now.getTime() - 7 * DAY_MS)
+  const hourlySince = new Date(now.getTime() - 24 * HOUR_MS)
+
+  const totalsPipe = (since: Date): Record<string, unknown>[] => [
     { $match: matchAssistantInWindow(since) },
-    bucketGroupStage(sparkTotals.unit, sparkTotals.binSize),
-    { $sort: { _id: 1 } },
+    ...modelMatchStage(models),
+    totalsGroupStage(),
+    { $project: { _id: 0, spendUsd: 1, inTokens: 1, outTokens: 1 } },
   ]
 
-  const sparkToday: Record<string, unknown>[] = [
-    { $match: matchAssistantInWindow(todaySince) },
-    bucketGroupStage(todaySparkSpec.unit, todaySparkSpec.binSize),
-    { $sort: { _id: 1 } },
-  ]
-
-  const sparkHour: Record<string, unknown>[] = [
-    { $match: matchAssistantInWindow(lastHourSince) },
-    bucketGroupStage(lastHourSparkSpec.unit, lastHourSparkSpec.binSize),
+  const sparkPipe = (since: Date, spec: SparkSpec): Record<string, unknown>[] => [
+    { $match: matchAssistantInWindow(since) },
+    ...modelMatchStage(models),
+    bucketGroupStage(spec.unit, spec.binSize),
     { $sort: { _id: 1 } },
   ]
 
   return {
-    totals,
-    today,
-    lastHour,
-    byModel,
-    recentRuns,
-    sparkTotals: sparkTotalsPipeline,
-    sparkToday,
-    sparkHour,
-    sparkSpecs: { totals: sparkTotals, today: todaySparkSpec, lastHour: lastHourSparkSpec },
-    windowSince: since,
-    todaySince,
-    lastHourSince,
+    monthlyTotals: totalsPipe(monthlySince),
+    monthlySpark: sparkPipe(monthlySince, monthlySparkSpec),
+    weeklyTotals: totalsPipe(weeklySince),
+    weeklySpark: sparkPipe(weeklySince, weeklySparkSpec),
+    hourlyTotals: totalsPipe(hourlySince),
+    hourlySpark: sparkPipe(hourlySince, hourlySparkSpec),
+    cardSpecs: { monthly: monthlySparkSpec, weekly: weeklySparkSpec, hourly: hourlySparkSpec },
   }
 }
 
@@ -285,14 +266,23 @@ function truncateDate(now: Date, unit: SparkUnit, binSize: number): Date {
 
 export type RawBucket = { _id: Date | string; spendUsd?: number }
 
-// Pure helper: maps raw aggregation buckets onto the expected bucket sequence
-// and pads gaps with 0. Output length always equals spec.bucketCount.
-export function padSparkBuckets(rawBuckets: RawBucket[], spec: SparkSpec, now: Date): number[] {
+// Pure helper: maps raw aggregation buckets onto the expected bucket sequence,
+// pads gaps with 0, and emits the per-bucket start timestamps the renderer
+// uses to label the selected bar. Output arrays always have length
+// spec.bucketCount and are oldest-first.
+export function padSparkWithStarts(
+  rawBuckets: RawBucket[],
+  spec: SparkSpec,
+  now: Date,
+): { spark: number[]; bucketStarts: string[] } {
   const map = new Map<number, number>()
   for (const b of rawBuckets) {
     const date = b._id instanceof Date ? b._id : new Date(b._id)
     map.set(date.getTime(), typeof b.spendUsd === 'number' ? b.spendUsd : 0)
   }
   const expected = expectedBucketStarts(spec, now)
-  return expected.map((d) => map.get(d.getTime()) ?? 0)
+  return {
+    spark: expected.map((d) => map.get(d.getTime()) ?? 0),
+    bucketStarts: expected.map((d) => d.toISOString()),
+  }
 }

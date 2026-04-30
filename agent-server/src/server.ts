@@ -14,6 +14,12 @@ import subagentsRouter from './routes/subagents.ts'
 import settingsRouter from './routes/settings.ts'
 import toolsRouter from './routes/tools.ts'
 import usageRouter from './routes/usage.ts'
+import githubRouter from './routes/github.ts'
+import sessionGithubRouter from './routes/sessionGithub.ts'
+import logsRouter from './routes/logs.ts'
+import { installServerLogCapture } from './logs.ts'
+
+installServerLogCapture()
 
 const app = express()
 
@@ -27,6 +33,8 @@ app.get('/health', (_req, res) => {
   }
   res.json(health)
 })
+
+app.use('/api/logs', logsRouter)
 
 function requireDb(_req: Request, res: Response, next: NextFunction): void {
   if (dbStatus() !== 'up') {
@@ -45,6 +53,8 @@ app.use('/api/subagents', subagentsRouter)
 app.use('/api/settings', settingsRouter)
 app.use('/api/tools', toolsRouter)
 app.use('/api/usage', usageRouter)
+app.use('/api/github', githubRouter)
+app.use('/api/sessions/:id/github', sessionGithubRouter)
 
 const DEFAULT_DEV_PORT = 3001
 const desiredPort = process.parentPort ? 0 : Number(process.env.AGENT_SERVER_PORT ?? DEFAULT_DEV_PORT)

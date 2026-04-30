@@ -9,6 +9,7 @@ import { Message } from '../../db/models/Message.ts'
 import { Conversation } from '../../db/models/Conversation.ts'
 import type { SSEHandle } from '../sse.ts'
 import type { TurnMode } from '../../shared/types.ts'
+import { withGitHubContext } from '../../github/context.ts'
 import type { RuntimeConversation } from './options.ts'
 import { buildQueryOptions } from './options.ts'
 import { extractAssistantText, extractSessionId, normalizeSdkMessage } from './events.ts'
@@ -97,7 +98,8 @@ export async function runConversationTurn({
 }: RunConversationTurnInput): Promise<RunConversationTurnResult> {
   await syncFromDb()
   const options = await buildQueryOptions(conversation, content, modes ?? [])
-  const stream = query({ prompt: content, options })
+  const prompt = await withGitHubContext(conversationId, content)
+  const stream = query({ prompt, options })
   const turnEntries: TurnUsageEntry[] = []
   let totalCostUsd: number | undefined
   let totalInputTokens: number | undefined

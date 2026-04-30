@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type View = 'chat' | 'finance' | 'settings'
+export type View = 'chat' | 'finance' | 'settings' | 'logs' | 'memory'
 export type SettingsTab = 'api' | 'model' | 'budget' | 'subagents' | 'skills' | 'tools' | 'conversations'
 
 type ViewState = {

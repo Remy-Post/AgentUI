@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import CommandPalette from './components/CommandPalette'
 import ChatLayout from './components/layouts/ChatLayout'
 import FinanceLayout from './components/layouts/FinanceLayout'
+import LogsLayout from './components/layouts/LogsLayout'
+import MemoryLayout from './components/layouts/MemoryLayout'
 import SettingsLayout from './components/layouts/SettingsLayout'
 import { useAppContext } from './components/AppContext'
 import { getServerOrigin } from './lib/api'
@@ -85,6 +87,16 @@ function App(): React.JSX.Element {
           setView('settings')
           return
         }
+        if (event.key === '4') {
+          event.preventDefault()
+          setView('logs')
+          return
+        }
+        if (event.key === '5') {
+          event.preventDefault()
+          setView('memory')
+          return
+        }
       }
     }
 
@@ -129,6 +141,8 @@ function App(): React.JSX.Element {
           onSelectConversation={selectConversation}
         />
       )}
+      {view === 'logs' && <LogsLayout />}
+      {view === 'memory' && <MemoryLayout />}
       {paletteOpen ? (
         <CommandPalette
           query={paletteQuery}
