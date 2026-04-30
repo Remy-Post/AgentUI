@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, PanelLeftClose } from 'lucide-react'
 import { apiFetch } from '../lib/api'
 import { useAppVersion } from '../hooks/useAppVersion'
-import { useSettings } from '../hooks/useSettings'
 import { formatRelativeTime, formatUsd } from '../lib/format'
 import JumpNav from './JumpNav'
 import StatusDot from './StatusDot'
@@ -25,14 +24,11 @@ type Props = {
   onToggleCollapsed?: () => void
   /** Optional override for the recent conversations body (used by finance mode). */
   bodySlot?: React.ReactNode
-  /** Optional footer label override. Model IDs are reduced to their family. */
-  footLabel?: string
 }
 
-function modelFamilyFromLabel(label: string | undefined): string {
-  if (!label) return 'sonnet'
-  const match = label.match(/\b(opus|sonnet|haiku)\b/i)
-  return match ? match[1].toLowerCase() : label
+function pageLabelFromMode(mode: SidebarMode): string {
+  if (mode.startsWith('settings')) return 'settings'
+  return mode
 }
 
 function ChatSidebarBody({
@@ -127,13 +123,10 @@ export default function Sidebar({
   selectedId = null,
   onSelect,
   onToggleCollapsed,
-  bodySlot,
-  footLabel
+  bodySlot
 }: Props): React.JSX.Element {
   const version = useAppVersion()
-  const { data: settings } = useSettings()
-  const fallbackFoot = settings?.defaultModel ?? settings?.defaultModelId ?? 'sonnet'
-  const footText = modelFamilyFromLabel(footLabel ?? fallbackFoot)
+  const footText = pageLabelFromMode(mode)
 
   const showRecentList = mode === 'chat' || mode === 'settings-default'
 
@@ -170,7 +163,7 @@ export default function Sidebar({
         <JumpNav />
 
         <div className="sidebar-foot">
-          <span className="chrome">{footText}</span>
+          <span className="sidebar-page-label">{footText}</span>
           <StatusDot />
         </div>
       </div>

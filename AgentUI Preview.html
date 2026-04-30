@@ -107,6 +107,7 @@
       .frame.side-collapsed .recent-cap,
       .frame.side-collapsed .conv-row .chrome,
       .frame.side-collapsed .conv-meta,
+      .frame.side-collapsed .sidebar-page-label,
       .frame.side-collapsed .sidebar-foot .chrome:not(.status-dot) { display: none; }
       .frame.side-collapsed .new-conv {
         margin: 0 10px 10px; padding: 8px;
@@ -175,6 +176,7 @@
       .conv-meta { display: flex; gap: 6px; align-items: center; margin-top: 2px; }
 
       .sidebar-foot { border-top: 1px solid var(--color-line); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; }
+      .sidebar-page-label { font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); letter-spacing: 0; }
       .status-dot { display: inline-flex; align-items: center; gap: 6px; }
       .status-dot::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: var(--color-good); }
 
@@ -1048,7 +1050,7 @@
         </ul>
 
         <div class="sidebar-foot">
-          <span class="chrome">sonnet</span>
+          <span class="sidebar-page-label">chat</span>
           <span class="chrome status-dot" aria-label="Server status: connected" title="Server status: connected"></span>
         </div>
       </aside>
@@ -1343,7 +1345,7 @@
           </li>
         </ul>
         <div class="sidebar-foot">
-          <span class="chrome">sonnet</span>
+          <span class="sidebar-page-label">finance</span>
           <span class="chrome status-dot" aria-label="Server status: connected" title="Server status: connected"></span>
         </div>
       </aside>
@@ -1575,7 +1577,7 @@
         </div>
 
         <div class="sidebar-foot">
-          <span class="chrome">sonnet</span>
+          <span class="sidebar-page-label">settings</span>
           <span class="chrome status-dot" aria-label="Server status: connected" title="Server status: connected"></span>
         </div>
       </aside>
@@ -1732,7 +1734,7 @@
           </ul>
         </div>
         <div class="sidebar-foot">
-          <span class="chrome">logs</span><span class="status-dot"><span class="status-label">connected</span></span>
+          <span class="sidebar-page-label">logs</span><span class="status-dot"><span class="status-label">connected</span></span>
         </div>
       </aside>
 
@@ -1825,7 +1827,7 @@
           </ul>
         </div>
         <div class="sidebar-foot">
-          <span class="chrome">memory</span><span class="status-dot"><span class="status-label">connected</span></span>
+          <span class="sidebar-page-label">memory</span><span class="status-dot"><span class="status-label">connected</span></span>
         </div>
       </aside>
 

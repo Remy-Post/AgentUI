@@ -155,6 +155,7 @@
 .frame.side-collapsed .recent-cap,
 .frame.side-collapsed .conv-row .chrome,
 .frame.side-collapsed .conv-meta,
+.frame.side-collapsed .sidebar-page-label,
 .frame.side-collapsed .sidebar-foot .chrome:not(.status-dot),
 .frame.side-collapsed .status-label { display: none; }
 .frame.side-collapsed .new-conv {
@@ -242,6 +243,7 @@
 .conv-item .delete-btn:hover { background: var(--color-error-bg); color: var(--color-error); }
 
 .sidebar-foot { padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sidebar-page-label { font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); letter-spacing: 0; }
 .status-dot { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); }
 .status-dot::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: var(--color-good); }
 .status-dot.checking::before { background: var(--color-muted); }
@@ -770,10 +772,14 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
-  align-items: start;
+  align-items: stretch;
 }
 .log-card {
   min-width: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--color-line);
   border-radius: 8px;
   background: var(--color-paper);
@@ -818,6 +824,7 @@
   background: var(--color-ink);
 }
 .log-list {
+  flex: 1;
   height: min(56vh, 520px);
   overflow: auto;
 }
@@ -858,6 +865,7 @@
   overflow-wrap: anywhere;
 }
 .log-empty {
+  flex: 1;
   min-height: 180px;
   display: grid;
   place-items: center;

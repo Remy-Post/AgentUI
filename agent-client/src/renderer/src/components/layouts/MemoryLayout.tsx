@@ -41,7 +41,6 @@ export default function MemoryLayout(): React.JSX.Element {
         bodySlot={<MemorySidebarBody />}
         collapsed={collapsed}
         onToggleCollapsed={() => setCollapsed(!collapsed)}
-        footLabel="memory"
       />
       <MemoryView />
     </div>
