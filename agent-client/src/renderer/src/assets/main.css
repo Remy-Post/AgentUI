@@ -357,8 +357,16 @@
   transition: background .18s ease;
 }
 .chat-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
-.chat-sub { display: flex; gap: 12px; align-items: center; margin-top: 4px; }
+.chat-sub { display: flex; gap: 12px; row-gap: 2px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
 .chips { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.chat-export-button { white-space: nowrap; }
+.chat-export-button svg { width: 12px; height: 12px; flex: 0 0 auto; }
+.chat-export-button:disabled { opacity: 0.55; cursor: not-allowed; }
+.chat-export-button:disabled:hover {
+  background: var(--color-paper);
+  border-color: var(--color-line);
+  color: var(--color-ink-3);
+}
 
 .messages {
   flex: 1 1 auto;

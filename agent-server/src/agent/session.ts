@@ -78,7 +78,7 @@ export async function getOrCreateSession(conversationId: string, model: string =
     session,
     lastUsed: Date.now(),
     createdAt: Date.now(),
-    busy: false,    
+    busy: false,
   }
   cache.set(conversationId, entry)
   startEvictionTimer()

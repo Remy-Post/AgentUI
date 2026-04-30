@@ -9,6 +9,7 @@ import { GitHubRepositorySource } from '../db/models/GitHubRepositorySource.ts'
 import { dropSession, isStreaming } from '../agent/session.ts'
 import { compressConversation } from '../agent/orchestration/compress.ts'
 import { normalizeModelClass, resolveContextWindow, resolveLatestModelId } from '../../util/vars.ts'
+import { nz } from '../util/numbers.ts'
 import type { CompressResponse, ContextDTO } from '../shared/types.ts'
 
 const router = Router()
@@ -168,10 +169,6 @@ const TOKENS_PER_TOOL_DEF = 150
 // First user message is usually short; we subtract a token-equivalent of
 // ~50 from the first-turn cacheCreation to leave system+tools.
 const FIRST_USER_MSG_ESTIMATE_TOKENS = 50
-
-function nz(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
-}
 
 function pickContextWindow(
   model: string,

@@ -1,8 +1,5 @@
 // Tools Protection
-import { SyncHookJSONOutput, type HookCallback, type HookJSONOutput } from '@anthropic-ai/claude-agent-sdk'
-
-
-
+import type { HookCallback } from '@anthropic-ai/claude-agent-sdk'
 
 export const protectSensitiveFiles: HookCallback = async (input) => {
   if (input.hook_event_name !== 'PreToolUse') return {}
@@ -11,15 +8,13 @@ export const protectSensitiveFiles: HookCallback = async (input) => {
   const filePath = toolInput.file_path ?? toolInput.path ?? ''
   const fileName = filePath.split(/[/\\]/).pop() ?? ''
 
-  if (
-    fileName.includes('.env')
-    ) {
+  if (fileName.includes('.env')) {
     return {
-        hookSpecificOutput: {
-            hookEventName: 'PreToolUse',
-            permissionDecision: 'deny',
-            permissionDecisionReason: 'Cannot modify sensitive files'
-        }
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: 'Cannot modify sensitive files',
+      },
     }
   }
 

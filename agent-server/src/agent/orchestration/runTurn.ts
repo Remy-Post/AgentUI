@@ -24,6 +24,7 @@ import {
   buildTurnUsageBulkOps,
   type TurnUsageEntry,
 } from './turnUsage.ts'
+import { nz } from '../../util/numbers.ts'
 
 export type RunConversationTurnInput = {
   conversationId: string
@@ -66,10 +67,6 @@ async function persistSdkSessionIdOnce(
 
   conversation.sdkSessionId = sessionId
   await Conversation.updateOne({ _id: conversationId }, { $set: { sdkSessionId: sessionId } })
-}
-
-function nz(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
 type AssistantPersistResult = {

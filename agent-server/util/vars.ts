@@ -1,8 +1,8 @@
 export const MODELS = {
-    opus: 'claude-opus-4-7',
-    sonnet: 'claude-sonnet-4-6',
-    haiku: 'claude-haiku-4-5-20251001'
-  } as const
+  opus: 'claude-opus-4-7',
+  sonnet: 'claude-sonnet-4-6',
+  haiku: 'claude-haiku-4-5-20251001',
+} as const
 
 export const MODEL_CLASSES = ['opus', 'sonnet', 'haiku'] as const
 export type ModelClass = (typeof MODEL_CLASSES)[number]
@@ -96,7 +96,7 @@ export function resolveContextWindow(
   return best ? best.window : DEFAULT_CONTEXT_WINDOW
 }
 
-  export const TOOLS = {
-    allowed: ['Read', 'Bash'],
-    disallowed: ['Write', 'Edit']
-  } as const
+export const TOOLS = {
+  allowed: ['Read', 'Bash'],
+  disallowed: ['Write', 'Edit'],
+} as const
