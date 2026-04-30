@@ -1,3 +1,5 @@
+import { cx } from '../../lib/classes'
+
 type Props = {
   values: number[]
   selectedIndex?: number | null
@@ -17,13 +19,10 @@ export default function SparkBars({
         const isLast = i === values.length - 1
         const isSelected = selectedIndex === i
         const hasSelection = selectedIndex != null
-        const classes = ['bar']
-        if (isLast && !hasSelection) classes.push('now')
-        if (isSelected) classes.push('selected')
         return (
           <div
             key={i}
-            className={classes.join(' ')}
+            className={cx('bar', isLast && !hasSelection && 'now', isSelected && 'selected')}
             style={{ height: `${height}%`, cursor: onSelect ? 'pointer' : undefined }}
             onClick={onSelect ? () => onSelect(i) : undefined}
           />

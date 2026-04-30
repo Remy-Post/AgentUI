@@ -1,4 +1,5 @@
 import type { FinanceWindow } from '../../hooks/useFinance'
+import { cx } from '../../lib/classes'
 
 const ORDER: FinanceWindow[] = ['24h', '7d', '30d', 'all']
 
@@ -27,12 +28,11 @@ export default function WindowToggle({ value, onChange, className }: Props): Rea
     const next = ORDER[(ORDER.indexOf(value) + 1) % ORDER.length]
     onChange(next)
   }
-  const cls = ['chip', 'button', 'window-toggle', className].filter(Boolean).join(' ')
 
   return (
     <button
       type="button"
-      className={cls}
+      className={cx('chip', 'button', 'window-toggle', className)}
       onClick={cycle}
       title={`${FULL_LABEL[value]} (click to change)`}
       aria-label={`Time window: ${FULL_LABEL[value]}. Click to change.`}

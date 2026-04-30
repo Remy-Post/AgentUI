@@ -41,14 +41,14 @@ export function useKeybinds(): {
   removeKeybind: (id: string) => void
   duplicateFor: (candidate: Pick<KeybindRecord, 'id' | 'keys' | 'enabled'>) => KeybindRecord | null
 } {
-  const config = useConfig<unknown>(KEYBIND_CONFIG_KEY, [])
-  const keybinds = useMemo(() => normalizeKeybinds(config.value), [config.value])
+  const { value, setValue, isReady } = useConfig<unknown>(KEYBIND_CONFIG_KEY, [])
+  const keybinds = useMemo(() => normalizeKeybinds(value), [value])
 
   const setKeybinds = useCallback(
     (next: KeybindRecord[]) => {
-      config.setValue(serializeKeybinds(next))
+      setValue(serializeKeybinds(next))
     },
-    [config]
+    [setValue]
   )
 
   const createKeybind = useCallback((actionId: KeybindActionId, keys: string): KeybindRecord => {
@@ -98,7 +98,7 @@ export function useKeybinds(): {
 
   return {
     keybinds,
-    isReady: config.isReady,
+    isReady,
     createKeybind,
     setKeybinds,
     updateKeybind,

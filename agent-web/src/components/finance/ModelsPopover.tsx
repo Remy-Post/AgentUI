@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useKeybindAction } from '../../hooks/useKeybindAction'
+import { cx } from '../../lib/classes'
 
 type ModelOption = { id: string; short: string; label: string }
 
@@ -68,7 +69,7 @@ export default function ModelsPopover({
     <div ref={wrapRef} style={{ position: 'relative' }}>
       <button
         type="button"
-        className={`chip button${buttonClassName ? ` ${buttonClassName}` : ''}`}
+        className={cx('chip', 'button', buttonClassName)}
         onClick={() => setOpen((s) => !s)}
         aria-pressed={open}
       >

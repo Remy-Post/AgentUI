@@ -6,7 +6,7 @@ import ModelsPopover, { ALL_MODEL_IDS } from './ModelsPopover'
 import WindowToggle from './WindowToggle'
 import { useFinance, type FinanceWindow } from '../../hooks/useFinance'
 import { useKeybindAction } from '../../hooks/useKeybindAction'
-import { apiFetch, getServerOrigin } from '../../lib/api'
+import { apiFetch, getServerUrl } from '../../lib/api'
 import { formatModelFamily, formatUsd } from '../../lib/format'
 import type { ConversationDTO, UsageBucket } from '@shared/types'
 
@@ -156,9 +156,6 @@ export default function FinanceView({
     setExportStatus(null)
     setExporting(true)
     try {
-      const origin = await getServerOrigin()
-      if (!origin) throw new Error('Server not reachable.')
-
       const params = new URLSearchParams()
       if (selectedConversationId) {
         params.set('conversationId', selectedConversationId)
@@ -170,7 +167,14 @@ export default function FinanceView({
       }
 
       const query = params.toString()
-      const res = await fetch(`${origin}/api/usage/export.csv${query ? `?${query}` : ''}`)
+      let exportUrl: string
+      try {
+        exportUrl = await getServerUrl(`/api/usage/export.csv${query ? `?${query}` : ''}`)
+      } catch {
+        throw new Error('Server not reachable.')
+      }
+
+      const res = await fetch(exportUrl)
       if (!res.ok) {
         throw new Error(`Export failed (${res.status}).`)
       }

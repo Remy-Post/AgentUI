@@ -21,7 +21,15 @@ export default function ChatView({
   onToggleInspector
 }: Props): React.JSX.Element {
   const queryClient = useQueryClient()
-  const streaming = useStreamingStore()
+  const streamingActive = useStreamingStore((s) => s.active)
+  const streamingConversationId = useStreamingStore((s) => s.conversationId)
+  const beginStreaming = useStreamingStore((s) => s.begin)
+  const appendAssistant = useStreamingStore((s) => s.appendAssistant)
+  const pushToolEvent = useStreamingStore((s) => s.pushToolEvent)
+  const pushMemoryRecall = useStreamingStore((s) => s.pushMemoryRecall)
+  const clearToolEvents = useStreamingStore((s) => s.clearToolEvents)
+  const endStreaming = useStreamingStore((s) => s.end)
+  const failStreaming = useStreamingStore((s) => s.fail)
   const abortRef = useRef<AbortController | null>(null)
 
   const conversationsQuery = useQuery({
@@ -41,19 +49,18 @@ export default function ChatView({
   const messages = messagesQuery.data ?? []
 
   useEffect(() => {
-    streaming.clearToolEvents()
+    clearToolEvents()
     return () => {
       abortRef.current?.abort()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId])
+  }, [clearToolEvents, conversationId])
 
   useKeybindAction('chat.stopStreaming', () => {
-    if (!conversationId || !streaming.active || streaming.conversationId !== conversationId) {
+    if (!conversationId || !streamingActive || streamingConversationId !== conversationId) {
       return false
     }
     abortRef.current?.abort()
-    streaming.end()
+    endStreaming()
     return true
   })
 
@@ -68,7 +75,7 @@ export default function ChatView({
   }
 
   const handleSubmit = async (content: string, modes: TurnMode[]): Promise<void> => {
-    streaming.begin(conversationId)
+    beginStreaming(conversationId)
     abortRef.current = new AbortController()
     try {
       await streamPost(
@@ -80,23 +87,23 @@ export default function ChatView({
             switch (event) {
               case 'assistant': {
                 const text = (data as { text?: string }).text ?? ''
-                if (text) streaming.appendAssistant(text)
+                if (text) appendAssistant(text)
                 break
               }
               case 'tool_progress':
-                streaming.pushToolEvent(data as { tool_name: string })
+                pushToolEvent(data as { tool_name: string })
                 break
               case 'memory_recall':
-                streaming.pushMemoryRecall(data as { mode?: string; memories?: unknown[] })
+                pushMemoryRecall(data as { mode?: string; memories?: unknown[] })
                 break
               case 'result':
-                streaming.end()
+                endStreaming()
                 queryClient.invalidateQueries({ queryKey: ['messages', conversationId] })
                 queryClient.invalidateQueries({ queryKey: ['conversations'] })
                 queryClient.invalidateQueries({ queryKey: ['context', conversationId] })
                 break
               case 'error':
-                streaming.fail((data as { message?: string }).message ?? 'stream_error')
+                failStreaming((data as { message?: string }).message ?? 'stream_error')
                 break
               default:
                 break
@@ -106,9 +113,9 @@ export default function ChatView({
       )
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
-        streaming.end()
+        endStreaming()
       } else {
-        streaming.fail(error instanceof Error ? error.message : 'stream_error')
+        failStreaming(error instanceof Error ? error.message : 'stream_error')
       }
     } finally {
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] })
@@ -130,7 +137,7 @@ export default function ChatView({
       />
       <Composer
         conversationId={conversationId}
-        disabled={streaming.active && streaming.conversationId === conversationId}
+        disabled={streamingActive && streamingConversationId === conversationId}
         onSubmit={handleSubmit}
         onCompress={async () => {
           await apiFetch<CompressResponse>(`/api/sessions/${conversationId}/compress`, {

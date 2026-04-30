@@ -1,6 +1,7 @@
 import Sidebar from '../Sidebar'
 import LogsView from '../logs/LogsView'
-import { useConfig } from '../../hooks/useConfig'
+import { cx } from '../../lib/classes'
+import { useBooleanConfig } from '../../hooks/useConfig'
 
 function LogsSidebarBody(): React.JSX.Element {
   return (
@@ -26,13 +27,8 @@ function LogsSidebarBody(): React.JSX.Element {
 }
 
 export default function LogsLayout(): React.JSX.Element {
-  const { value: collapsed, setValue: setCollapsed } = useConfig<boolean>(
-    'sidebar.collapsed',
-    false
-  )
-  const frameClass = ['frame', 'settings', 'no-rail', collapsed ? 'side-collapsed' : '']
-    .filter(Boolean)
-    .join(' ')
+  const { value: collapsed, toggle: toggleCollapsed } = useBooleanConfig('sidebar.collapsed', false)
+  const frameClass = cx('frame', 'settings', 'no-rail', collapsed && 'side-collapsed')
 
   return (
     <div className={frameClass}>
@@ -40,7 +36,7 @@ export default function LogsLayout(): React.JSX.Element {
         mode="logs"
         bodySlot={<LogsSidebarBody />}
         collapsed={collapsed}
-        onToggleCollapsed={() => setCollapsed(!collapsed)}
+        onToggleCollapsed={toggleCollapsed}
       />
       <LogsView />
     </div>

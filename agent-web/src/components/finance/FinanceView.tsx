@@ -6,7 +6,7 @@ import ModelsPopover, { ALL_MODEL_IDS } from './ModelsPopover'
 import WindowToggle from './WindowToggle'
 import { useFinance, type FinanceWindow } from '../../hooks/useFinance'
 import { useKeybindAction } from '../../hooks/useKeybindAction'
-import { apiFetch, getServerOrigin } from '../../lib/api'
+import { apiFetch, apiUrl, pathWithQuery } from '../../lib/api'
 import { formatModelFamily, formatUsd } from '../../lib/format'
 import type { ConversationDTO, UsageBucket } from '@shared/types'
 
@@ -36,7 +36,6 @@ function UsageCard({
 }): React.JSX.Element {
   const last = bucket.spark.length - 1
   const [selected, setSelected] = useState<number | null>(null)
-  // Defensive clamp on render in case spark length changes after a refresh.
   const clamped = selected != null && selected > last ? last : selected
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
@@ -135,6 +134,29 @@ function downloadCsv(blob: Blob, filename: string): void {
   window.setTimeout(() => URL.revokeObjectURL(href), 0)
 }
 
+function usageExportPath({
+  selectedConversationId,
+  windowValue,
+  selectedModels
+}: {
+  selectedConversationId: string | null
+  windowValue: FinanceWindow
+  selectedModels: string[]
+}): string {
+  const params = new URLSearchParams()
+
+  if (selectedConversationId) {
+    params.set('conversationId', selectedConversationId)
+  } else {
+    params.set('window', windowValue)
+    if (selectedModels.length > 0 && selectedModels.length < ALL_MODEL_IDS.length) {
+      params.set('models', selectedModels.join(','))
+    }
+  }
+
+  return pathWithQuery('/api/usage/export.csv', params)
+}
+
 export default function FinanceView({
   windowValue,
   setWindow,
@@ -156,21 +178,9 @@ export default function FinanceView({
     setExportStatus(null)
     setExporting(true)
     try {
-      const origin = await getServerOrigin()
-      if (!origin) throw new Error('Server not reachable.')
-
-      const params = new URLSearchParams()
-      if (selectedConversationId) {
-        params.set('conversationId', selectedConversationId)
-      } else {
-        params.set('window', windowValue)
-        if (selectedModels.length > 0 && selectedModels.length < ALL_MODEL_IDS.length) {
-          params.set('models', selectedModels.join(','))
-        }
-      }
-
-      const query = params.toString()
-      const res = await fetch(`${origin}/api/usage/export.csv${query ? `?${query}` : ''}`)
+      const res = await fetch(
+        apiUrl(usageExportPath({ selectedConversationId, windowValue, selectedModels }))
+      )
       if (!res.ok) {
         throw new Error(`Export failed (${res.status}).`)
       }

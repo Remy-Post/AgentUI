@@ -91,10 +91,10 @@ export async function syncFromDb(): Promise<{ subagents: number; skills: number 
   ])
 
   for (const doc of subagents) {
-    await writeSubagentFile(doc as unknown as SubagentDoc)
+    await writeSubagentFile(doc)
   }
   for (const doc of skills) {
-    await writeSkillFile(doc as unknown as SkillDoc)
+    await writeSkillFile(doc)
   }
   return { subagents: subagents.length, skills: skills.length }
 }

@@ -12,23 +12,32 @@ import type {
 
 const DEFAULT_SERVER_ORIGIN = 'http://127.0.0.1:3001'
 
-export async function getServerOrigin(): Promise<string | null> {
+export function getServerOriginSync(): string {
   const configured = import.meta.env.VITE_AGENT_SERVER_URL?.trim()
   return (configured || DEFAULT_SERVER_ORIGIN).replace(/\/+$/, '')
 }
 
+export async function getServerOrigin(): Promise<string | null> {
+  return getServerOriginSync()
+}
+
+export function apiUrl(path: string): string {
+  return `${getServerOriginSync()}${path}`
+}
+
+export function pathWithQuery(path: string, query: URLSearchParams): string {
+  const suffix = query.toString()
+  return `${path}${suffix ? `?${suffix}` : ''}`
+}
+
 export async function getServerHealth(signal?: AbortSignal): Promise<HealthDTO> {
-  const origin = await getServerOrigin()
-  if (!origin) throw new Error('server_not_ready')
-  const res = await fetch(`${origin}/health`, { signal })
+  const res = await fetch(apiUrl('/health'), { signal })
   if (!res.ok) throw new Error(`health_failed_${res.status}`)
   return (await res.json()) as HealthDTO
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const origin = await getServerOrigin()
-  if (!origin) throw new Error('server_not_ready')
-  const res = await fetch(`${origin}${path}`, {
+  const res = await fetch(apiUrl(path), {
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
     ...init
   })
@@ -54,8 +63,7 @@ export async function listMemories(params: ListMemoriesParams = {}): Promise<Mem
   if (params.type) query.set('type', params.type)
   if (tag) query.set('tag', tag)
 
-  const suffix = query.toString()
-  return apiFetch<MemoryDTO[]>(`/api/memories${suffix ? `?${suffix}` : ''}`)
+  return apiFetch<MemoryDTO[]>(pathWithQuery('/api/memories', query))
 }
 
 export async function createMemory(body: CreateMemoryRequest): Promise<MemoryDTO> {
@@ -82,12 +90,12 @@ export type SdkMemoryFileParams = {
   relativePath: string
 }
 
-function sdkMemoryQuery(params: SdkMemoryFileParams): string {
+function sdkMemoryPath(params: SdkMemoryFileParams): string {
   const query = new URLSearchParams()
   query.set('scope', params.scope)
   if (params.agentName) query.set('agentName', params.agentName)
   query.set('path', params.relativePath)
-  return query.toString()
+  return pathWithQuery('/api/sdk-memory/file', query)
 }
 
 export async function listSdkMemory(): Promise<SdkMemoryListDTO> {
@@ -95,19 +103,19 @@ export async function listSdkMemory(): Promise<SdkMemoryListDTO> {
 }
 
 export async function readSdkMemoryFile(params: SdkMemoryFileParams): Promise<SdkMemoryReadDTO> {
-  return apiFetch<SdkMemoryReadDTO>(`/api/sdk-memory/file?${sdkMemoryQuery(params)}`)
+  return apiFetch<SdkMemoryReadDTO>(sdkMemoryPath(params))
 }
 
 export async function updateSdkMemoryFile(
   params: SdkMemoryFileParams,
   body: UpdateSdkMemoryFileRequest
 ): Promise<SdkMemoryReadDTO> {
-  return apiFetch<SdkMemoryReadDTO>(`/api/sdk-memory/file?${sdkMemoryQuery(params)}`, {
+  return apiFetch<SdkMemoryReadDTO>(sdkMemoryPath(params), {
     method: 'PUT',
     body: JSON.stringify(body)
   })
 }
 
 export async function deleteSdkMemoryFile(params: SdkMemoryFileParams): Promise<void> {
-  return apiFetch<void>(`/api/sdk-memory/file?${sdkMemoryQuery(params)}`, { method: 'DELETE' })
+  return apiFetch<void>(sdkMemoryPath(params), { method: 'DELETE' })
 }

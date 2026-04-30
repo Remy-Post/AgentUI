@@ -20,12 +20,23 @@ export async function getServerOrigin(): Promise<string | null> {
   return `http://127.0.0.1:${port}`
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function getServerUrl(path: string): Promise<string> {
   const origin = await getServerOrigin()
   if (!origin) throw new Error('server_not_ready')
-  const res = await fetch(`${origin}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-    ...init
+  return `${origin}${path}`
+}
+
+function jsonHeaders(headers?: HeadersInit): Headers {
+  const next = new Headers(headers)
+  if (!next.has('Content-Type')) next.set('Content-Type', 'application/json')
+  return next
+}
+
+export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const { headers, ...requestInit } = init
+  const res = await fetch(await getServerUrl(path), {
+    ...requestInit,
+    headers: jsonHeaders(headers)
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')

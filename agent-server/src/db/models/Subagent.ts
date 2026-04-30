@@ -19,4 +19,5 @@ const SubagentSchema = new mongoose.Schema(
 
 export type SubagentDoc = mongoose.InferSchemaType<typeof SubagentSchema> & { _id: mongoose.Types.ObjectId }
 
-export const Subagent = mongoose.models.Subagent ?? mongoose.model('Subagent', SubagentSchema)
+export const Subagent: mongoose.Model<SubagentDoc> =
+  (mongoose.models.Subagent as mongoose.Model<SubagentDoc> | undefined) ?? mongoose.model<SubagentDoc>('Subagent', SubagentSchema)

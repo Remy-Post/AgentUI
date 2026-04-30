@@ -186,7 +186,7 @@ export function useTools(): {
       if (previous) {
         queryClient.setQueryData(['tools'], {
           ...previous,
-          tools: previous.tools.map((t) => (t.id === id ? ({ ...t, ...body } as ToolDTO) : t))
+          tools: previous.tools.map((tool) => (tool.id === id ? { ...tool, ...body } : tool))
         })
       }
       return { previous }

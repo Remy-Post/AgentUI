@@ -1,9 +1,20 @@
 import { Router } from 'express'
 import mongoose from 'mongoose'
-import { Skill } from '../db/models/Skill.ts'
+import { Skill, type SkillDoc } from '../db/models/Skill.ts'
 import { writeSkillFile, removeSkillFile } from '../agent/scaffold.ts'
 
 const router = Router()
+
+async function syncSkillFile(previousName: string, updated: SkillDoc): Promise<void> {
+  if (previousName !== updated.name) {
+    await removeSkillFile(previousName)
+  }
+  if (updated.enabled) {
+    await writeSkillFile(updated)
+  } else {
+    await removeSkillFile(updated.name)
+  }
+}
 
 router.get('/', async (_req, res) => {
   const docs = await Skill.find().sort({ name: 1 }).lean()
@@ -29,15 +40,7 @@ router.put('/:id', async (req, res) => {
   const updated = await Skill.findByIdAndUpdate(req.params.id, req.body, { new: true })
   if (!updated) return res.status(404).json({ error: 'not_found' })
 
-  // Remove old file if name changed; rewrite under current state.
-  if (previous.name !== updated.name) {
-    await removeSkillFile(previous.name)
-  }
-  if (updated.enabled) {
-    await writeSkillFile(updated)
-  } else {
-    await removeSkillFile(updated.name)
-  }
+  await syncSkillFile(previous.name, updated)
   return res.json(updated)
 })
 
@@ -58,14 +61,7 @@ router.patch('/:id', async (req, res) => {
   const updated = await Skill.findByIdAndUpdate(req.params.id, { $set: update }, { new: true })
   if (!updated) return res.status(404).json({ error: 'not_found' })
 
-  if (previous.name !== updated.name) {
-    await removeSkillFile(previous.name)
-  }
-  if (updated.enabled) {
-    await writeSkillFile(updated)
-  } else {
-    await removeSkillFile(updated.name)
-  }
+  await syncSkillFile(previous.name, updated)
   return res.json(updated)
 })
 

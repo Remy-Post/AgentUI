@@ -31,11 +31,9 @@ export function useConfig<T>(
   defaultValue: T
 ): { value: T; setValue: (next: T) => void; isReady: boolean } {
   const queryClient = useQueryClient()
-  const query = useQuery({
+  const query = useQuery<T>({
     queryKey: CONFIG_KEY(key),
-    queryFn: async (): Promise<unknown> => {
-      return readStoredConfig(key, defaultValue)
-    },
+    queryFn: () => readStoredConfig(key, defaultValue),
     staleTime: Infinity
   })
 
@@ -47,8 +45,16 @@ export function useConfig<T>(
     [key, queryClient]
   )
 
-  const value = (query.data as T | undefined) ?? defaultValue
-  return { value, setValue, isReady: !query.isPending }
+  return { value: query.data ?? defaultValue, setValue, isReady: !query.isPending }
+}
+
+export function useBooleanConfig(
+  key: string,
+  defaultValue: boolean
+): { value: boolean; setValue: (next: boolean) => void; toggle: () => void; isReady: boolean } {
+  const { value, setValue, isReady } = useConfig<boolean>(key, defaultValue)
+  const toggle = useCallback(() => setValue(!value), [setValue, value])
+  return { value, setValue, toggle, isReady }
 }
 
 export async function readConfigOnce<T>(key: string, fallback: T): Promise<T> {

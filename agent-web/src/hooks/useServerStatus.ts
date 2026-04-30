@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { getServerHealth, getServerOrigin } from '../lib/api'
+import { getServerHealth, getServerOriginSync } from '../lib/api'
 import type { HealthDTO } from '@shared/types'
 
 export type ServerStatus =
@@ -53,11 +53,6 @@ export function useServerConnection(): ServerConnection {
       void query.refetch()
     }
   }
-}
-
-function getServerOriginSync(): string | null {
-  const configured = import.meta.env.VITE_AGENT_SERVER_URL?.trim()
-  return (configured || 'http://127.0.0.1:3001').replace(/\/+$/, '')
 }
 
 export function useServerStatus(): ServerStatus {

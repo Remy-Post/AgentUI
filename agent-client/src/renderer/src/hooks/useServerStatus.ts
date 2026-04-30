@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { getServerOrigin } from '../lib/api'
+import { apiFetch } from '../lib/api'
 import type { HealthDTO } from '@shared/types'
 
 export type ServerStatus =
@@ -13,12 +13,8 @@ export function useServerStatus(): ServerStatus {
   const query = useQuery({
     queryKey: ['server-health'],
     queryFn: async (): Promise<Exclude<ServerStatus, 'checking'>> => {
-      const origin = await getServerOrigin()
-      if (!origin) return 'server-unreachable'
       try {
-        const res = await fetch(`${origin}/health`)
-        if (!res.ok) return 'server-unreachable'
-        const health = (await res.json()) as HealthDTO
+        const health = await apiFetch<HealthDTO>('/health')
         if (health.db !== 'up') return 'db-down'
         if (health.sdk !== 'ready') return 'sdk-not-ready'
         return 'connected'

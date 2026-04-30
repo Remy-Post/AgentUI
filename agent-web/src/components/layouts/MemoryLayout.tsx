@@ -1,6 +1,7 @@
 import Sidebar from '../Sidebar'
 import MemoryView from '../memory/MemoryView'
-import { useConfig } from '../../hooks/useConfig'
+import { cx } from '../../lib/classes'
+import { useBooleanConfig } from '../../hooks/useConfig'
 
 function MemorySidebarBody(): React.JSX.Element {
   return (
@@ -26,13 +27,8 @@ function MemorySidebarBody(): React.JSX.Element {
 }
 
 export default function MemoryLayout(): React.JSX.Element {
-  const { value: collapsed, setValue: setCollapsed } = useConfig<boolean>(
-    'sidebar.collapsed',
-    false
-  )
-  const frameClass = ['frame', 'settings', 'no-rail', collapsed ? 'side-collapsed' : '']
-    .filter(Boolean)
-    .join(' ')
+  const { value: collapsed, toggle: toggleCollapsed } = useBooleanConfig('sidebar.collapsed', false)
+  const frameClass = cx('frame', 'settings', 'no-rail', collapsed && 'side-collapsed')
 
   return (
     <div className={frameClass}>
@@ -40,7 +36,7 @@ export default function MemoryLayout(): React.JSX.Element {
         mode="memory"
         bodySlot={<MemorySidebarBody />}
         collapsed={collapsed}
-        onToggleCollapsed={() => setCollapsed(!collapsed)}
+        onToggleCollapsed={toggleCollapsed}
       />
       <MemoryView />
     </div>

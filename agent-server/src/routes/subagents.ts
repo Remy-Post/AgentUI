@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import type { Response } from 'express'
 import mongoose from 'mongoose'
-import { Subagent } from '../db/models/Subagent.ts'
+import { Subagent, type SubagentDoc } from '../db/models/Subagent.ts'
 import { writeSubagentFile, removeSubagentFile } from '../agent/scaffold.ts'
 import type { SubagentMemoryScope } from '../shared/types.ts'
 
@@ -29,6 +29,17 @@ function sendUpdateError(res: Response, error: unknown): void {
   }
   const message = error instanceof Error ? error.message : 'update_failed'
   res.status(500).json({ error: message })
+}
+
+async function syncSubagentFile(previousName: string, updated: SubagentDoc): Promise<void> {
+  if (previousName !== updated.name) {
+    await removeSubagentFile(previousName)
+  }
+  if (updated.enabled) {
+    await writeSubagentFile(updated)
+  } else {
+    await removeSubagentFile(updated.name)
+  }
 }
 
 router.get('/', async (_req, res) => {
@@ -64,14 +75,7 @@ router.put('/:id', async (req, res) => {
   }
   if (!updated) return res.status(404).json({ error: 'not_found' })
 
-  if (previous.name !== updated.name) {
-    await removeSubagentFile(previous.name)
-  }
-  if (updated.enabled) {
-    await writeSubagentFile(updated)
-  } else {
-    await removeSubagentFile(updated.name)
-  }
+  await syncSubagentFile(previous.name, updated)
   return res.json(updated)
 })
 
@@ -111,14 +115,7 @@ router.patch('/:id', async (req, res) => {
   }
   if (!updated) return res.status(404).json({ error: 'not_found' })
 
-  if (previous.name !== updated.name) {
-    await removeSubagentFile(previous.name)
-  }
-  if (updated.enabled) {
-    await writeSubagentFile(updated)
-  } else {
-    await removeSubagentFile(updated.name)
-  }
+  await syncSubagentFile(previous.name, updated)
   return res.json(updated)
 })
 

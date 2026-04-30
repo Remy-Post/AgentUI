@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Check, AlertCircle, Plug, KeyRound, ShieldCheck } from 'lucide-react'
-import { apiFetch, getServerOrigin } from '../../lib/api'
+import { apiFetch, getServerHealth } from '../../lib/api'
 import type { GitHubAuthDTO } from '@shared/types'
 
 type Status = { kind: 'ok' | 'err'; message: string } | null
@@ -91,18 +91,8 @@ export default function ApiKeyTab(): React.JSX.Element {
     if (testResetTimer.current) clearTimeout(testResetTimer.current)
     setTesting(true)
     try {
-      const origin = await getServerOrigin()
-      if (!origin) {
-        setTestResult('err')
-        return
-      }
-      const res = await fetch(`${origin}/health`)
-      if (!res.ok) {
-        setTestResult('err')
-        return
-      }
-      const json = (await res.json()) as { db?: string; sdk?: string }
-      setTestResult(json.db === 'up' && json.sdk === 'ready' ? 'ok' : 'err')
+      const health = await getServerHealth()
+      setTestResult(health.db === 'up' && health.sdk === 'ready' ? 'ok' : 'err')
     } catch {
       setTestResult('err')
     } finally {

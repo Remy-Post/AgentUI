@@ -2,11 +2,11 @@ import SettingsView from '../settings/SettingsView'
 import SettingsSidebar from '../settings/SettingsSidebar'
 import EntityList from '../settings/EntityList'
 import { useViewStore } from '../../store/view'
-import { useConfig } from '../../hooks/useConfig'
+import { cx } from '../../lib/classes'
+import { useBooleanConfig, useConfig } from '../../hooks/useConfig'
 import { useKeybindAction } from '../../hooks/useKeybindAction'
 
 type Props = {
-  selectedConversationId: string | null
   onSelectConversation: (id: string) => void
 }
 
@@ -14,11 +14,8 @@ export default function SettingsLayout({
   onSelectConversation
 }: Props): React.JSX.Element {
   const settingsTab = useViewStore((s) => s.settingsTab)
-  const { value: collapsed, setValue: setCollapsed } = useConfig<boolean>(
-    'sidebar.collapsed',
-    false
-  )
-  const { value: drawerOpen, setValue: setDrawerOpen } = useConfig<boolean>(
+  const { value: collapsed, toggle: toggleCollapsed } = useBooleanConfig('sidebar.collapsed', false)
+  const { value: drawerOpen, toggle: toggleDrawer } = useBooleanConfig(
     'settings.entityDrawer.open',
     true
   )
@@ -27,30 +24,25 @@ export default function SettingsLayout({
 
   useKeybindAction('settings.toggleEntityDrawer', () => {
     if (!hasDrawer) return false
-    setDrawerOpen(!drawerOpen)
+    toggleDrawer()
     return true
   })
 
-  const frameClass = [
+  const frameClass = cx(
     'frame',
     'settings',
-    hasDrawer ? '' : 'no-rail',
-    hasDrawer && !drawerOpen ? 'rail-closed' : '',
-    collapsed ? 'side-collapsed' : ''
-  ]
-    .filter(Boolean)
-    .join(' ')
+    !hasDrawer && 'no-rail',
+    hasDrawer && !drawerOpen && 'rail-closed',
+    collapsed && 'side-collapsed'
+  )
 
   return (
     <div className={frameClass} style={{ ['--rail-w' as string]: `${drawerWidth}px` }}>
-      <SettingsSidebar
-        collapsed={collapsed}
-        onToggleCollapsed={() => setCollapsed(!collapsed)}
-      />
+      <SettingsSidebar collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
       <SettingsView
         onSelectConversation={onSelectConversation}
         drawerOpen={drawerOpen}
-        onToggleDrawer={() => setDrawerOpen(!drawerOpen)}
+        onToggleDrawer={toggleDrawer}
       />
       {hasDrawer && (
         <aside className="rail settings-entity-rail">

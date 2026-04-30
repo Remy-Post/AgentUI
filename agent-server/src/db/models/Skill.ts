@@ -14,4 +14,5 @@ const SkillSchema = new mongoose.Schema(
 
 export type SkillDoc = mongoose.InferSchemaType<typeof SkillSchema> & { _id: mongoose.Types.ObjectId }
 
-export const Skill = mongoose.models.Skill ?? mongoose.model('Skill', SkillSchema)
+export const Skill: mongoose.Model<SkillDoc> =
+  (mongoose.models.Skill as mongoose.Model<SkillDoc> | undefined) ?? mongoose.model<SkillDoc>('Skill', SkillSchema)

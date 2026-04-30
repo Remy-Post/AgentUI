@@ -1,4 +1,4 @@
-import { getServerOrigin } from '../lib/api'
+import { apiUrl } from '../lib/api'
 
 export type SSEHandler = (event: string, data: unknown) => void
 
@@ -11,10 +11,7 @@ export type StreamOptions = {
 // is POST (the server treats sending the user message and streaming the turn
 // as a single transaction).
 export async function streamPost(path: string, body: unknown, opts: StreamOptions): Promise<void> {
-  const origin = await getServerOrigin()
-  if (!origin) throw new Error('server_not_ready')
-
-  const res = await fetch(`${origin}${path}`, {
+  const res = await fetch(apiUrl(path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify(body),

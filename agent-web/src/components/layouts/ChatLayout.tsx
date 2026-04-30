@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import Sidebar from '../Sidebar'
 import ChatView from '../ChatView'
 import RunInspector from '../RunInspector'
-import { useConfig } from '../../hooks/useConfig'
+import { cx } from '../../lib/classes'
+import { useBooleanConfig, useConfig } from '../../hooks/useConfig'
 import { apiFetch } from '../../lib/api'
 import type { MessageDTO } from '@shared/types'
 
@@ -17,11 +18,8 @@ export default function ChatLayout({
   onSelectConversation
 }: Props): React.JSX.Element {
   const frameRef = useRef<HTMLDivElement>(null)
-  const { value: collapsed, setValue: setCollapsed } = useConfig<boolean>(
-    'sidebar.collapsed',
-    false
-  )
-  const { value: railOpen, setValue: setRailOpen } = useConfig<boolean>('inspector.open', true)
+  const { value: collapsed, toggle: toggleCollapsed } = useBooleanConfig('sidebar.collapsed', false)
+  const { value: railOpen, toggle: toggleRailOpen } = useBooleanConfig('inspector.open', true)
   const { value: railWidth, setValue: setRailWidth } = useConfig<number>('inspector.width', 320)
 
   const messagesQuery = useQuery({
@@ -33,9 +31,7 @@ export default function ChatLayout({
     enabled: !!selectedConversationId
   })
 
-  const frameClass = ['frame', collapsed ? 'side-collapsed' : '', railOpen ? '' : 'rail-closed']
-    .filter(Boolean)
-    .join(' ')
+  const frameClass = cx('frame', collapsed && 'side-collapsed', !railOpen && 'rail-closed')
 
   return (
     <div ref={frameRef} className={frameClass} style={{ ['--rail-w' as string]: `${railWidth}px` }}>
@@ -44,12 +40,12 @@ export default function ChatLayout({
         selectedId={selectedConversationId}
         onSelect={onSelectConversation}
         collapsed={collapsed}
-        onToggleCollapsed={() => setCollapsed(!collapsed)}
+        onToggleCollapsed={toggleCollapsed}
       />
       <ChatView
         conversationId={selectedConversationId}
         inspectorOpen={railOpen}
-        onToggleInspector={() => setRailOpen(!railOpen)}
+        onToggleInspector={toggleRailOpen}
       />
       <aside className="rail">
         <RunInspector
