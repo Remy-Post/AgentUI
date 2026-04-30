@@ -2,7 +2,11 @@ import type {
   CreateMemoryRequest,
   MemoryDTO,
   MemoryType,
-  UpdateMemoryRequest
+  SdkMemoryListDTO,
+  SdkMemoryReadDTO,
+  SdkMemoryScope,
+  UpdateMemoryRequest,
+  UpdateSdkMemoryFileRequest
 } from '@shared/types'
 
 let portPromise: Promise<number | null> | null = null
@@ -65,4 +69,40 @@ export async function updateMemory(id: string, body: UpdateMemoryRequest): Promi
 
 export async function deleteMemory(id: string): Promise<void> {
   return apiFetch<void>(`/api/memories/${id}`, { method: 'DELETE' })
+}
+
+export type SdkMemoryFileParams = {
+  scope: SdkMemoryScope
+  agentName?: string
+  relativePath: string
+}
+
+function sdkMemoryQuery(params: SdkMemoryFileParams): string {
+  const query = new URLSearchParams()
+  query.set('scope', params.scope)
+  if (params.agentName) query.set('agentName', params.agentName)
+  query.set('path', params.relativePath)
+  return query.toString()
+}
+
+export async function listSdkMemory(): Promise<SdkMemoryListDTO> {
+  return apiFetch<SdkMemoryListDTO>('/api/sdk-memory')
+}
+
+export async function readSdkMemoryFile(params: SdkMemoryFileParams): Promise<SdkMemoryReadDTO> {
+  return apiFetch<SdkMemoryReadDTO>(`/api/sdk-memory/file?${sdkMemoryQuery(params)}`)
+}
+
+export async function updateSdkMemoryFile(
+  params: SdkMemoryFileParams,
+  body: UpdateSdkMemoryFileRequest
+): Promise<SdkMemoryReadDTO> {
+  return apiFetch<SdkMemoryReadDTO>(`/api/sdk-memory/file?${sdkMemoryQuery(params)}`, {
+    method: 'PUT',
+    body: JSON.stringify(body)
+  })
+}
+
+export async function deleteSdkMemoryFile(params: SdkMemoryFileParams): Promise<void> {
+  return apiFetch<void>(`/api/sdk-memory/file?${sdkMemoryQuery(params)}`, { method: 'DELETE' })
 }

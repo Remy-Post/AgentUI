@@ -31,6 +31,9 @@ function buildSubagentMarkdown(doc: SubagentDoc): string {
   if (Array.isArray(doc.mcpServices) && doc.mcpServices.length > 0) {
     front.mcpServices = doc.mcpServices.join(', ')
   }
+  if (doc.memory === 'user' || doc.memory === 'project' || doc.memory === 'local') {
+    front.memory = doc.memory
+  }
   return matter.stringify(doc.prompt ?? '', front)
 }
 

@@ -1,5 +1,5 @@
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
-import type { SSEEventName } from '../../shared/types.ts'
+import type { SSEEventName, SSEMemoryRecallMemory } from '../../shared/types.ts'
 
 export type NormalizedStreamEvent = {
   name: SSEEventName
@@ -56,6 +56,20 @@ export function normalizeSdkMessage(message: SDKMessage): NormalizedStreamEvent 
     }
     case 'system': {
       const subtype = (message as { subtype?: string }).subtype
+      if (subtype === 'memory_recall') {
+        const memoryMessage = message as {
+          mode?: 'select' | 'synthesize'
+          memories?: SSEMemoryRecallMemory[]
+        }
+        return {
+          name: 'memory_recall',
+          data: {
+            mode: memoryMessage.mode ?? 'select',
+            memories: Array.isArray(memoryMessage.memories) ? memoryMessage.memories : [],
+            raw: message,
+          },
+        }
+      }
       if (subtype === 'task_started') {
         return {
           name: 'tool_progress',

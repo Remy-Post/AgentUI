@@ -12,6 +12,7 @@ export type ToolCategory =
   | 'web'
   | 'schedules'
   | 'tasks'
+  | 'notes'
   | 'mcp'
   | 'google-suite'
   | 'database'
@@ -533,13 +534,49 @@ export const DEFAULT_TOOLS: ToolCatalogEntry[] = [
     order: 1170,
   },
   {
+    id: 'notes.read',
+    label: 'Notes read',
+    description: 'Search and read user-visible AgentUI Notes through MCP.',
+    enabled: true,
+    category: 'notes',
+    kind: 'mcp',
+    order: 1180,
+  },
+  {
+    id: 'notes.create',
+    label: 'Notes create',
+    description: 'Create user-visible AgentUI Notes through MCP.',
+    enabled: true,
+    category: 'notes',
+    kind: 'mcp',
+    order: 1190,
+  },
+  {
+    id: 'notes.update',
+    label: 'Notes update',
+    description: 'Update user-visible AgentUI Notes through MCP.',
+    enabled: true,
+    category: 'notes',
+    kind: 'mcp',
+    order: 1200,
+  },
+  {
+    id: 'notes.delete',
+    label: 'Notes delete',
+    description: 'Delete user-visible AgentUI Notes through MCP.',
+    enabled: true,
+    category: 'notes',
+    kind: 'mcp',
+    order: 1210,
+  },
+  {
     id: 'git.commit',
     label: 'Git commit',
     description: 'Compatibility toggle for commit workflows; direct git commits remain safety-gated.',
     enabled: false,
     category: 'source-control',
     kind: 'compatibility',
-    order: 1200,
+    order: 1220,
   },
   {
     id: 'sqlite.query',
@@ -548,7 +585,7 @@ export const DEFAULT_TOOLS: ToolCatalogEntry[] = [
     enabled: false,
     category: 'database',
     kind: 'compatibility',
-    order: 1210,
+    order: 1230,
   },
 ]
 

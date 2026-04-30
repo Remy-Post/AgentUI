@@ -22,6 +22,15 @@ function turnIndex(messages: MessageDTO[], target: MessageDTO, role: 'user' | 'a
   return count
 }
 
+// Hides accounting-only assistant rows that exist for token aggregation but
+// have no display content. See agent-server runTurn.ts.
+function isAccountingOnly(m: MessageDTO): boolean {
+  if (m.role !== 'assistant') return false
+  if (typeof m.content !== 'object' || m.content === null) return false
+  const kind = (m.content as { kind?: unknown }).kind
+  return kind === 'tool_use_only' || kind === 'turn_usage'
+}
+
 function renderContent(message: MessageDTO): React.ReactNode {
   if (typeof message.content === 'string') {
     return <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
@@ -67,7 +76,7 @@ export default function MessageList({
   return (
     <div className="messages">
       <div className="messages-inner">
-        {messages.map((m) => {
+        {messages.filter((m) => !isAccountingOnly(m)).map((m) => {
           if (m.role === 'tool') {
             return (
               <div key={m._id} className="msg-row tool">

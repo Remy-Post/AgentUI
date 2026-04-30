@@ -14,6 +14,9 @@ type SettingsLean = {
   defaultModel?: string
   useOneMillionContext?: boolean
   useFastMode?: boolean
+  autoMemoryEnabled?: boolean
+  autoMemoryDirectory?: string
+  autoDreamEnabled?: boolean
 }
 
 function toDto(doc: SettingsLean | null | undefined): SettingsDTO {
@@ -23,6 +26,9 @@ function toDto(doc: SettingsLean | null | undefined): SettingsDTO {
     defaultModelId: resolveLatestModelId(cls),
     useOneMillionContext: Boolean(doc?.useOneMillionContext),
     useFastMode: Boolean(doc?.useFastMode),
+    autoMemoryEnabled: doc?.autoMemoryEnabled !== false,
+    autoMemoryDirectory: typeof doc?.autoMemoryDirectory === 'string' ? doc.autoMemoryDirectory : '',
+    autoDreamEnabled: Boolean(doc?.autoDreamEnabled),
   }
 }
 
@@ -49,6 +55,15 @@ router.put('/', async (req, res) => {
   }
   if (typeof body.useFastMode === 'boolean') {
     update.useFastMode = body.useFastMode
+  }
+  if (typeof body.autoMemoryEnabled === 'boolean') {
+    update.autoMemoryEnabled = body.autoMemoryEnabled
+  }
+  if (typeof body.autoMemoryDirectory === 'string') {
+    update.autoMemoryDirectory = body.autoMemoryDirectory.trim()
+  }
+  if (typeof body.autoDreamEnabled === 'boolean') {
+    update.autoDreamEnabled = body.autoDreamEnabled
   }
   if (Object.keys(update).length === 0) return res.status(400).json({ error: 'no_op' })
 

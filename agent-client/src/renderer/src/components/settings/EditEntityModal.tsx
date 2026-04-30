@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import Modal from '../Modal'
 import { apiFetch } from '../../lib/api'
-import type { SkillDTO, SubagentDTO } from '@shared/types'
+import type { SkillDTO, SubagentDTO, SubagentMemoryScope } from '@shared/types'
 
 type Kind = 'skill' | 'subagent'
 
@@ -19,6 +19,13 @@ const MODELS = ['claude-sonnet-4', 'claude-opus-4', 'claude-haiku-4-5'] as const
 const GWS_SERVICES = ['drive', 'gmail', 'calendar', 'sheets', 'docs', 'tasks'] as const
 type GwsService = (typeof GWS_SERVICES)[number]
 
+const MEMORY_SCOPES: Array<{ value: SubagentMemoryScope; label: string }> = [
+  { value: 'local', label: 'Local' },
+  { value: 'project', label: 'Project' },
+  { value: 'user', label: 'User' },
+  { value: 'none', label: 'None' }
+]
+
 type Draft = {
   name: string
   description: string
@@ -26,6 +33,7 @@ type Draft = {
   model: string
   enabled: boolean
   mcpServices: GwsService[]
+  memory: SubagentMemoryScope
 }
 
 function emptyDraft(): Draft {
@@ -35,7 +43,8 @@ function emptyDraft(): Draft {
     prompt: '',
     model: 'claude-sonnet-4',
     enabled: true,
-    mcpServices: []
+    mcpServices: [],
+    memory: 'local'
   }
 }
 
@@ -49,7 +58,8 @@ function fromExisting(kind: Kind, existing: SkillDTO | SubagentDTO | null): Draf
       prompt: s.body,
       model: 'claude-sonnet-4',
       enabled: s.enabled,
-      mcpServices: []
+      mcpServices: [],
+      memory: 'none'
     }
   }
   const s = existing as SubagentDTO
@@ -61,7 +71,8 @@ function fromExisting(kind: Kind, existing: SkillDTO | SubagentDTO | null): Draf
     enabled: s.enabled,
     mcpServices: Array.isArray(s.mcpServices)
       ? s.mcpServices.filter((v): v is GwsService => GWS_SERVICES.includes(v as GwsService))
-      : []
+      : [],
+    memory: s.memory ?? 'none'
   }
 }
 
@@ -97,6 +108,7 @@ export default function EditEntityModal({
         body.prompt = draft.prompt
         body.model = draft.model || undefined
         body.mcpServices = draft.mcpServices
+        body.memory = draft.memory
       }
 
       if (existing) {
@@ -176,6 +188,27 @@ export default function EditEntityModal({
               </option>
             ))}
           </select>
+        </div>
+      )}
+      {kind === 'subagent' && (
+        <div className="field">
+          <label className="field-label">Memory</label>
+          <select
+            className="select"
+            value={draft.memory}
+            onChange={(e) =>
+              setDraft((d) => ({ ...d, memory: e.target.value as SubagentMemoryScope }))
+            }
+          >
+            {MEMORY_SCOPES.map((scope) => (
+              <option key={scope.value} value={scope.value}>
+                {scope.label}
+              </option>
+            ))}
+          </select>
+          <span className="chrome" style={{ display: 'block', marginTop: 6 }}>
+            Local memory stays in this project and lets the subagent remember across turns.
+          </span>
         </div>
       )}
       {kind === 'subagent' && (

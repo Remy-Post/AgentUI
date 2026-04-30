@@ -4,6 +4,10 @@ export type TurnUsageEntry = {
   id: mongoose.Types.ObjectId
   tokens: number
   model?: string
+  inputTokens?: number
+  outputTokens?: number
+  cacheCreationInputTokens?: number
+  cacheReadInputTokens?: number
 }
 
 export type TurnUsageBulkOp = {
@@ -11,6 +15,27 @@ export type TurnUsageBulkOp = {
     filter: { _id: mongoose.Types.ObjectId }
     update: { $set: { costUsd: number } }
   }
+}
+
+export type TurnReconcileBulkOp = {
+  updateOne: {
+    filter: { _id: mongoose.Types.ObjectId }
+    update: {
+      $inc: {
+        inputTokens?: number
+        outputTokens?: number
+        cacheCreationInputTokens?: number
+        cacheReadInputTokens?: number
+      }
+    }
+  }
+}
+
+export type TurnUsageTotals = {
+  inputTokens?: number
+  outputTokens?: number
+  cacheCreationInputTokens?: number
+  cacheReadInputTokens?: number
 }
 
 export type ContextWindowBulkOp = {
@@ -66,4 +91,42 @@ export function buildTurnUsageBulkOps(
     const costUsd = totalCostUsd * (weights[i] / sum)
     return { updateOne: { filter: { _id: e.id }, update: { $set: { costUsd } } } }
   })
+}
+
+// Reconciles per-message token counts against the SDK's authoritative turn
+// totals from result.usage. The SDK reports correct turn-level totals but the
+// per-message usage we capture during streaming misses tool-use-only and
+// sub-agent API calls. The delta (turn total - sum of per-entry tokens) is
+// applied via $inc to the LAST entry so that summing inputTokens/outputTokens/
+// cache* across the turn's Message rows equals the SDK's turn totals.
+// Returns [] when there are no entries or no nonzero delta.
+export function buildTurnReconcileBulkOps(
+  entries: TurnUsageEntry[],
+  totals: TurnUsageTotals,
+): TurnReconcileBulkOp[] {
+  if (entries.length === 0) return []
+
+  const persistedIn = entries.reduce((acc, e) => acc + (e.inputTokens ?? 0), 0)
+  const persistedOut = entries.reduce((acc, e) => acc + (e.outputTokens ?? 0), 0)
+  const persistedCacheCreate = entries.reduce(
+    (acc, e) => acc + (e.cacheCreationInputTokens ?? 0),
+    0,
+  )
+  const persistedCacheRead = entries.reduce((acc, e) => acc + (e.cacheReadInputTokens ?? 0), 0)
+
+  const deltaIn = (totals.inputTokens ?? 0) - persistedIn
+  const deltaOut = (totals.outputTokens ?? 0) - persistedOut
+  const deltaCacheCreate = (totals.cacheCreationInputTokens ?? 0) - persistedCacheCreate
+  const deltaCacheRead = (totals.cacheReadInputTokens ?? 0) - persistedCacheRead
+
+  const $inc: TurnReconcileBulkOp['updateOne']['update']['$inc'] = {}
+  if (deltaIn !== 0) $inc.inputTokens = deltaIn
+  if (deltaOut !== 0) $inc.outputTokens = deltaOut
+  if (deltaCacheCreate !== 0) $inc.cacheCreationInputTokens = deltaCacheCreate
+  if (deltaCacheRead !== 0) $inc.cacheReadInputTokens = deltaCacheRead
+
+  if (Object.keys($inc).length === 0) return []
+
+  const last = entries[entries.length - 1]
+  return [{ updateOne: { filter: { _id: last.id }, update: { $inc } } }]
 }

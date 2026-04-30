@@ -75,7 +75,7 @@ function MemoryEditorModal({
   }, [open, existing])
 
   const isValid = draft.title.trim().length > 0 && draft.content.trim().length > 0
-  const title = existing ? 'Edit memory' : 'New memory'
+  const title = existing ? 'Edit note' : 'New note'
 
   return (
     <Modal
@@ -149,7 +149,7 @@ function MemoryEditorModal({
           onChange={(event) =>
             setDraft((current) => ({ ...current, content: event.target.value }))
           }
-          placeholder="Write the memory"
+          placeholder="Write the note"
         />
       </div>
       {error ? (
@@ -191,8 +191,16 @@ export default function MemoryView(): React.JSX.Element {
 
   const remove = useMutation({
     mutationFn: (id: string) => deleteMemory(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['memories'] })
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['memories'] })
+    }
   })
+
+  const deleteError = remove.isError
+    ? remove.error instanceof Error
+      ? remove.error.message
+      : 'Delete failed.'
+    : null
 
   const openCreate = (): void => {
     save.reset()
@@ -206,6 +214,13 @@ export default function MemoryView(): React.JSX.Element {
     setModalOpen(true)
   }
 
+  const closeModal = (): void => {
+    if (save.isPending) return
+    setModalOpen(false)
+    setEditing(null)
+    save.reset()
+  }
+
   const activeFilters = search.trim().length > 0 || Boolean(typeFilter) || tagFilter.trim().length > 0
   const memories = memoriesQuery.data ?? []
 
@@ -213,7 +228,7 @@ export default function MemoryView(): React.JSX.Element {
     <section className="settings-section">
       <header className="settings-header">
         <div>
-          <h2 className="settings-title">Memory</h2>
+          <h2 className="settings-title">Notes</h2>
           <div className="chrome">
             {memoriesQuery.data ? `${memories.length} shown` : 'local mongodb'}
           </div>
@@ -223,13 +238,13 @@ export default function MemoryView(): React.JSX.Element {
         <div className="settings-pane memory-pane">
           <div className="pane-head">
             <div className="pane-head-text">
-              <div className="pane-title">All memories</div>
+              <div className="pane-title">All notes</div>
               <div className="pane-sub">
-                {activeFilters ? 'Filtered local memory.' : 'Local editable memory.'}
+                {activeFilters ? 'Filtered local notes.' : 'Local editable notes.'}
               </div>
             </div>
             <button type="button" className="btn-primary" onClick={openCreate}>
-              <Plus size={12} /> New memory
+              <Plus size={12} /> New note
             </button>
           </div>
 
@@ -240,7 +255,7 @@ export default function MemoryView(): React.JSX.Element {
                 className="input"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search memories"
+                placeholder="Search notes"
               />
             </label>
             <select
@@ -281,7 +296,7 @@ export default function MemoryView(): React.JSX.Element {
             {memoriesQuery.isPending && (
               <div className="list-row compact">
                 <div />
-                <div className="desc">Loading memories...</div>
+                <div className="desc">Loading notes...</div>
                 <div />
               </div>
             )}
@@ -290,9 +305,23 @@ export default function MemoryView(): React.JSX.Element {
               <div className="list-row compact">
                 <div />
                 <div className="desc" style={{ color: 'var(--color-error)' }}>
-                  Failed to load memories.
+                  Failed to load notes.
                 </div>
                 <div />
+              </div>
+            )}
+
+            {deleteError && (
+              <div className="list-row compact">
+                <div />
+                <div className="desc" style={{ color: 'var(--color-error)' }}>
+                  Delete failed. {deleteError}
+                </div>
+                <div className="row-actions">
+                  <button type="button" className="btn-secondary" onClick={() => remove.reset()}>
+                    Dismiss
+                  </button>
+                </div>
               </div>
             )}
 
@@ -300,7 +329,7 @@ export default function MemoryView(): React.JSX.Element {
               <div className="list-row compact">
                 <div />
                 <div className="desc">
-                  {activeFilters ? 'No memories match these filters.' : 'No memories yet.'}
+                  {activeFilters ? 'No notes match these filters.' : 'No notes yet.'}
                 </div>
                 <div />
               </div>
@@ -334,7 +363,7 @@ export default function MemoryView(): React.JSX.Element {
                     type="button"
                     className="btn-secondary"
                     onClick={() => openEdit(memory)}
-                    title="Edit memory"
+                    title="Edit note"
                     style={{ padding: '6px 10px' }}
                   >
                     <Pencil size={12} />
@@ -344,9 +373,9 @@ export default function MemoryView(): React.JSX.Element {
                     className="btn-danger"
                     disabled={remove.isPending}
                     onClick={() => {
-                      if (confirm(`Delete memory "${memory.title}"?`)) remove.mutate(memory._id)
+                      if (confirm(`Delete note "${memory.title}"?`)) remove.mutate(memory._id)
                     }}
-                    title="Delete memory"
+                    title="Delete note"
                   >
                     <Trash2 size={12} />
                   </button>
@@ -362,7 +391,7 @@ export default function MemoryView(): React.JSX.Element {
         existing={editing}
         saving={save.isPending}
         error={save.isError ? save.error : null}
-        onClose={() => setModalOpen(false)}
+        onClose={closeModal}
         onSave={(body) => save.mutate({ id: editing?._id, body })}
       />
     </section>

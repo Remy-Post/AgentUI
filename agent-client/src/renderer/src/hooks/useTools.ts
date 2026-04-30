@@ -82,8 +82,12 @@ const FALLBACK_TOOLS: ToolDTO[] = [
   fallbackTool('mysql.create', 'MySQL create', 'database', false, 1150, { kind: 'mcp' }),
   fallbackTool('mysql.update', 'MySQL update', 'database', false, 1160, { kind: 'mcp' }),
   fallbackTool('mysql.delete', 'MySQL delete', 'database', false, 1170, { kind: 'mcp' }),
-  fallbackTool('git.commit', 'Git commit', 'source-control', false, 1200, { kind: 'compatibility' }),
-  fallbackTool('sqlite.query', 'SQLite query', 'database', false, 1210, { kind: 'compatibility' })
+  fallbackTool('notes.read', 'Notes read', 'notes', true, 1180, { kind: 'mcp' }),
+  fallbackTool('notes.create', 'Notes create', 'notes', true, 1190, { kind: 'mcp' }),
+  fallbackTool('notes.update', 'Notes update', 'notes', true, 1200, { kind: 'mcp' }),
+  fallbackTool('notes.delete', 'Notes delete', 'notes', true, 1210, { kind: 'mcp' }),
+  fallbackTool('git.commit', 'Git commit', 'source-control', false, 1220, { kind: 'compatibility' }),
+  fallbackTool('sqlite.query', 'SQLite query', 'database', false, 1230, { kind: 'compatibility' })
 ]
 
 function readFallbackOverrides(): Record<string, boolean> {

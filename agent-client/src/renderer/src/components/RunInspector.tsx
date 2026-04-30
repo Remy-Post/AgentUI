@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import RailHandle from './RailHandle'
-import { useStreamingStore } from '../store/streaming'
+import { useStreamingStore, type MemoryRecallEvent } from '../store/streaming'
 import { truncate } from '../lib/format'
 import type { MessageDTO } from '@shared/types'
 
@@ -28,6 +28,20 @@ function extractToolNameFromContent(content: unknown): string {
 function asString(content: unknown): string {
   if (typeof content === 'string') return content
   return ''
+}
+
+type RecallRow = {
+  event: MemoryRecallEvent
+  memory: MemoryRecallEvent['memories'][number] | null
+}
+
+function pathBaseName(pathValue: string): string {
+  return pathValue.replace(/\\/g, '/').split('/').filter(Boolean).at(-1) ?? pathValue
+}
+
+function contentSnippet(content: string | undefined): string {
+  if (!content) return ''
+  return truncate(content.replace(/\s+/g, ' ').trim(), 72)
 }
 
 export default function RunInspector({
@@ -82,6 +96,18 @@ export default function RunInspector({
     }
     return deduped.slice(-8)
   }, [messages, streaming.toolEvents])
+
+  const recallRows = useMemo<RecallRow[]>(() => {
+    const rows: RecallRow[] = []
+    for (const event of streaming.memoryRecallEvents) {
+      if (event.memories.length === 0) {
+        rows.push({ event, memory: null })
+        continue
+      }
+      for (const memory of event.memories) rows.push({ event, memory })
+    }
+    return rows.slice(-6)
+  }, [streaming.memoryRecallEvents])
 
   const lastUser = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
@@ -140,6 +166,31 @@ export default function RunInspector({
           <ul className="rail-tools">
             {combinedTools.map((name, i) => (
               <li key={`${name}-${i}`}>{name}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="rail-section">
+        <div className="cap">Memory recall</div>
+        {recallRows.length === 0 ? (
+          <div className="chrome" style={{ marginTop: 6 }}>
+            no recalls yet
+          </div>
+        ) : (
+          <ul className="rail-tools">
+            {recallRows.map(({ event, memory }, i) => (
+              <li className="rail-memory-ref" key={`${event.ts}-${memory?.path ?? 'empty'}-${i}`}>
+                <div className="rail-memory-copy">
+                  <span className="rail-memory-title">
+                    {event.mode}
+                    {memory ? ` · ${memory.scope} · ${pathBaseName(memory.path)}` : ' · no matches'}
+                  </span>
+                  {memory?.content && (
+                    <span className="rail-memory-snippet">{contentSnippet(memory.content)}</span>
+                  )}
+                </div>
+              </li>
             ))}
           </ul>
         )}

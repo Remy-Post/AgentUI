@@ -5,13 +5,20 @@ import {
   uniqueGoogleWorkspaceServices,
 } from '../../mcp/gwsTypes.ts'
 import { type DbEngine, type DbOperation, type DbToolId, dbToolId, uniqueDbToolIds } from '../../mcp/dbTypes.ts'
+import { type NotesToolId, uniqueNotesToolIds } from '../../mcp/notesTypes.ts'
 import { writeSubagentFile } from '../scaffold.ts'
 import type { RuntimeConversation } from './options.ts'
 import type { RuntimeToolPolicy } from './toolPolicy.ts'
-import { AGENT_TOOL_NAME, expandToolNames, filterEnabledDbToolIds, filterEnabledSdkTools } from './toolPolicy.ts'
+import {
+  AGENT_TOOL_NAME,
+  expandToolNames,
+  filterEnabledDbToolIds,
+  filterEnabledNotesToolIds,
+  filterEnabledSdkTools,
+} from './toolPolicy.ts'
 import type { RuntimeSubagentRecord } from './agents.ts'
 
-type TaskKind = 'research' | 'code' | 'test' | 'web' | 'automation' | 'workspace' | 'database'
+type TaskKind = 'research' | 'code' | 'test' | 'web' | 'automation' | 'workspace' | 'database' | 'notes'
 
 export type DynamicSubagentTask = {
   kind: TaskKind
@@ -52,6 +59,7 @@ const KIND_MARKERS: Record<TaskKind, string[]> = {
   automation: ['shell', 'command', 'script', 'mongo', 'mongodb', 'database', 'sqlite', 'automation'],
   workspace: ['google workspace', 'gmail', 'google drive', 'google calendar', 'google sheets', 'google docs', 'google tasks'],
   database: ['mongo', 'mongodb', 'mysql', 'database', 'collection', 'table', 'crud'],
+  notes: ['note', 'notes', 'remember', 'recall', 'forget'],
 }
 
 const WORKSPACE_SERVICE_MARKERS: Record<GoogleWorkspaceService, RegExp[]> = {
@@ -113,6 +121,21 @@ const DB_ACTION_MARKERS = [
   /\b(?:read|find|list|show|select|query|insert|create|update|delete|remove)\b/i,
 ]
 
+const NOTES_INTENT_MARKERS = [
+  /\bnotes?\b/i,
+  /\bremember(?:\s+this|\s+that|\s+the)?\b/i,
+  /\brecall\s+(?:my\s+)?notes?\b/i,
+  /\bforget\s+(?:this|that|note|notes?|memory)\b/i,
+  /\b(?:save|store|add)\b.{0,40}\b(?:note|notes?|memory)\b/i,
+]
+
+const NOTES_OPERATION_MARKERS: Record<'read' | 'create' | 'update' | 'delete', RegExp[]> = {
+  read: [/\b(?:search|find|read|list|show|recall|get|look up)\b/i],
+  create: [/\b(?:remember|save|store|add|create|note down)\b/i],
+  update: [/\b(?:update|modify|change|edit|revise)\b/i],
+  delete: [/\b(?:delete|remove|forget)\b/i],
+}
+
 function unique<T extends string>(values: Iterable<T>): T[] {
   const out: T[] = []
   const seen = new Set<T>()
@@ -149,6 +172,10 @@ function hasDatabaseIntent(value: string): boolean {
   return DB_ACTION_MARKERS.some((marker) => marker.test(value))
 }
 
+function hasNotesIntent(value: string): boolean {
+  return NOTES_INTENT_MARKERS.some((marker) => marker.test(value))
+}
+
 function detectWorkspaceServices(segment: string, policy: RuntimeToolPolicy): GoogleWorkspaceService[] {
   if (!hasWorkspaceIntent(segment)) return []
   const services: GoogleWorkspaceService[] = []
@@ -174,6 +201,20 @@ function detectDatabaseToolIds(segment: string, policy: RuntimeToolPolicy): DbTo
     engines.flatMap((engine) => operations.map((operation) => dbToolId(engine, operation)))
       .filter((toolId) => policy.enabledDbToolIds.has(toolId)),
   )
+}
+
+function detectNotesToolIds(segment: string, policy: RuntimeToolPolicy): NotesToolId[] {
+  if (!hasNotesIntent(segment)) return []
+  const tools: NotesToolId[] = []
+  if (NOTES_OPERATION_MARKERS.read.some((marker) => marker.test(segment))) tools.push('notes.read')
+  if (NOTES_OPERATION_MARKERS.create.some((marker) => marker.test(segment))) tools.push('notes.create')
+  if (NOTES_OPERATION_MARKERS.update.some((marker) => marker.test(segment))) tools.push('notes.update')
+  if (NOTES_OPERATION_MARKERS.delete.some((marker) => marker.test(segment))) tools.push('notes.delete')
+  if ((tools.includes('notes.update') || tools.includes('notes.delete')) && !tools.includes('notes.read')) {
+    tools.unshift('notes.read')
+  }
+  if (tools.length === 0) tools.push('notes.read')
+  return filterEnabledNotesToolIds(uniqueNotesToolIds(tools), policy)
 }
 
 function stripBullet(value: string): string {
@@ -218,6 +259,7 @@ function classifyKinds(segment: string): TaskKind[] {
 function requiredTools(kind: TaskKind, purpose: string): string[] {
   switch (kind) {
     case 'database':
+    case 'notes':
       return []
     case 'code':
       return /\b(?:new file|create|scaffold|add)\b/i.test(purpose)
@@ -259,6 +301,7 @@ function taskDescription(kind: TaskKind, purpose: string, service?: GoogleWorksp
     return `Scoped ${serviceLabel(service)} subagent for: ${purpose.slice(0, 140)}`
   }
   if (kind === 'database') return `Scoped database subagent for: ${purpose.slice(0, 140)}`
+  if (kind === 'notes') return `Scoped Notes subagent for: ${purpose.slice(0, 140)}`
   return `Scoped ${kind} subagent for: ${purpose.slice(0, 140)}`
 }
 
@@ -376,6 +419,32 @@ function buildDatabaseTask(
   }
 }
 
+function buildNotesTask(
+  purpose: string,
+  toolIds: NotesToolId[],
+  policy: RuntimeToolPolicy,
+  conversation: RuntimeConversation,
+): DynamicSubagentTask | null {
+  const tools = filterEnabledNotesToolIds(toolIds, policy)
+  if (tools.length === 0) return null
+
+  const disallowedTools = unique([...Array.from(policy.enabledSdkTools), AGENT_TOOL_NAME])
+  const slug = slugify(purpose)
+  const name = `agentui_notes_${slug}`.slice(0, 80)
+
+  return {
+    kind: 'notes',
+    purpose,
+    description: taskDescription('notes', purpose),
+    tools,
+    disallowedTools,
+    model: conversation.model,
+    effort: 'medium',
+    name,
+    prompt: taskPrompt('notes', purpose, tools),
+  }
+}
+
 export function planDynamicSubagentTasks(
   content: string,
   policy: RuntimeToolPolicy,
@@ -394,6 +463,19 @@ export function planDynamicSubagentTasks(
         if (seen.has(key)) continue
         seen.add(key)
         tasks.push(task)
+      }
+      continue
+    }
+
+    const notesToolIds = detectNotesToolIds(segment, policy)
+    if (notesToolIds.length > 0) {
+      const task = buildNotesTask(segment, notesToolIds, policy, conversation)
+      if (task) {
+        const key = `${task.kind}:${task.tools.join(',')}:${slugify(task.purpose)}`
+        if (!seen.has(key)) {
+          seen.add(key)
+          tasks.push(task)
+        }
       }
       continue
     }
@@ -437,6 +519,12 @@ function tokenOverlapScore(left: string, right: string): number {
 
 function hasRequiredTools(candidate: RuntimeSubagentRecord, task: DynamicSubagentTask): boolean {
   if (task.tools.length === 0) return true
+  const taskNotesTools = uniqueNotesToolIds(task.tools)
+  if (taskNotesTools.length > 0) {
+    const candidateNotesTools = uniqueNotesToolIds(candidate.tools)
+    if (!Array.isArray(candidate.tools)) return true
+    return taskNotesTools.every((tool) => candidateNotesTools.includes(tool))
+  }
   const taskDbTools = uniqueDbToolIds(task.tools)
   if (taskDbTools.length > 0) {
     const candidateDbTools = new Set(uniqueDbToolIds(candidate.tools))
@@ -478,6 +566,10 @@ function toRuntimeSubagentRecord(doc: SubagentDoc): RuntimeSubagentRecord {
     tools: doc.tools ?? undefined,
     disallowedTools: doc.disallowedTools ?? undefined,
     mcpServices: uniqueGoogleWorkspaceServices(doc.mcpServices),
+    memory:
+      doc.memory === 'user' || doc.memory === 'project' || doc.memory === 'local' || doc.memory === 'none'
+        ? doc.memory
+        : undefined,
   }
 }
 
@@ -503,6 +595,7 @@ async function createDynamicSubagent(task: DynamicSubagentTask): Promise<Runtime
     tools: task.tools,
     disallowedTools: task.disallowedTools,
     mcpServices: task.mcpServices,
+    memory: 'local',
     enabled: true,
   })
   await writeSubagentFile(doc)

@@ -12,9 +12,15 @@ import type { TurnMode } from '../../shared/types.ts'
 import { withGitHubContext } from '../../github/context.ts'
 import type { RuntimeConversation } from './options.ts'
 import { buildQueryOptions } from './options.ts'
-import { extractAssistantText, extractSessionId, normalizeSdkMessage } from './events.ts'
+import {
+  extractAssistantText,
+  extractSessionId,
+  normalizeSdkMessage,
+  type NormalizedStreamEvent,
+} from './events.ts'
 import {
   buildContextWindowBulkOps,
+  buildTurnReconcileBulkOps,
   buildTurnUsageBulkOps,
   type TurnUsageEntry,
 } from './turnUsage.ts'
@@ -34,6 +40,19 @@ export type RunConversationTurnResult = {
   totalOutputTokens?: number
   totalCacheCreationInputTokens?: number
   totalCacheReadInputTokens?: number
+}
+
+export function writePassthroughEventToSse(
+  event: NormalizedStreamEvent,
+  sse: Pick<SSEHandle, 'write'>,
+): boolean {
+  switch (event.name) {
+    case 'memory_recall':
+      sse.write('memory_recall', event.data)
+      return true
+    default:
+      return false
+  }
 }
 
 async function persistSdkSessionIdOnce(
@@ -61,31 +80,53 @@ async function persistAssistantMessage(
   conversationId: string,
   message: SDKAssistantMessage,
 ): Promise<AssistantPersistResult> {
-  const text = extractAssistantText(message)
-  if (!text) return {}
-
   const inner = message.message
   const usage = inner?.usage
   const isTopLevel = message.parent_tool_use_id == null
   const model = typeof inner?.model === 'string' ? inner.model : undefined
+  const text = extractAssistantText(message)
 
-  const doc: Record<string, unknown> = { conversationId, role: 'assistant', content: text }
+  // Sub-agent (nested) messages: only persist when there's display text;
+  // otherwise we'd write empty assistant rows for every internal step.
+  // Their tokens are absorbed into the turn-level reconcile delta.
+  if (!isTopLevel) {
+    if (!text) return {}
+    await Message.create({ conversationId, role: 'assistant', content: text })
+    return {}
+  }
 
-  if (isTopLevel) {
-    if (typeof model === 'string') doc.model = model
-    if (usage) {
-      doc.inputTokens = nz(usage.input_tokens)
-      doc.outputTokens = nz(usage.output_tokens)
-      doc.cacheCreationInputTokens = nz(usage.cache_creation_input_tokens)
-      doc.cacheReadInputTokens = nz(usage.cache_read_input_tokens)
-    }
+  // Top-level: persist a row even when text is empty (tool-use-only API call)
+  // so that the turn's Message rows hold all the per-call usage data, which
+  // is required for buildTurnReconcileBulkOps to land its $inc on a real id.
+  const content: unknown = text || { kind: 'tool_use_only' }
+  const doc: Record<string, unknown> = { conversationId, role: 'assistant', content }
+  if (typeof model === 'string') doc.model = model
+
+  const inputTokens = usage ? nz(usage.input_tokens) : 0
+  const outputTokens = usage ? nz(usage.output_tokens) : 0
+  const cacheCreationInputTokens = usage ? nz(usage.cache_creation_input_tokens) : 0
+  const cacheReadInputTokens = usage ? nz(usage.cache_read_input_tokens) : 0
+
+  if (usage) {
+    doc.inputTokens = inputTokens
+    doc.outputTokens = outputTokens
+    doc.cacheCreationInputTokens = cacheCreationInputTokens
+    doc.cacheReadInputTokens = cacheReadInputTokens
   }
 
   const created = await Message.create(doc)
-
-  if (!isTopLevel) return {}
-  const tokens = nz(usage?.input_tokens) + nz(usage?.output_tokens)
-  return { entry: { id: created._id, tokens, model } }
+  const tokens = inputTokens + outputTokens
+  return {
+    entry: {
+      id: created._id,
+      tokens,
+      model,
+      inputTokens,
+      outputTokens,
+      cacheCreationInputTokens,
+      cacheReadInputTokens,
+    },
+  }
 }
 
 export async function runConversationTurn({
@@ -135,14 +176,54 @@ export async function runConversationTurn({
                 : []
             if (typeof cost === 'number' && Number.isFinite(cost)) totalCostUsd = cost
             const contextOps = buildContextWindowBulkOps(turnEntries, result.modelUsage)
-            const allOps = [...costOps, ...contextOps]
-            if (allOps.length > 0) await Message.bulkWrite(allOps, { ordered: false })
+
             const usage = result.usage
-            if (usage) {
-              totalInputTokens = nz(usage.input_tokens)
-              totalOutputTokens = nz(usage.output_tokens)
-              totalCacheCreationInputTokens = nz(usage.cache_creation_input_tokens)
-              totalCacheReadInputTokens = nz(usage.cache_read_input_tokens)
+            const reconcileOps = usage
+              ? (() => {
+                  const inputTokens = nz(usage.input_tokens)
+                  const outputTokens = nz(usage.output_tokens)
+                  const cacheCreationInputTokens = nz(usage.cache_creation_input_tokens)
+                  const cacheReadInputTokens = nz(usage.cache_read_input_tokens)
+
+                  totalInputTokens = inputTokens
+                  totalOutputTokens = outputTokens
+                  totalCacheCreationInputTokens = cacheCreationInputTokens
+                  totalCacheReadInputTokens = cacheReadInputTokens
+
+                  return buildTurnReconcileBulkOps(turnEntries, {
+                    inputTokens,
+                    outputTokens,
+                    cacheCreationInputTokens,
+                    cacheReadInputTokens,
+                  })
+                })()
+              : []
+
+            const allOps = [...costOps, ...contextOps, ...reconcileOps]
+            if (allOps.length > 0) await Message.bulkWrite(allOps, { ordered: false })
+
+            // Edge case: a turn produced no top-level assistant entries but the
+            // SDK still reports usage. Drop a synthetic accounting row so the
+            // tokens show up in Finance aggregation. The renderer hides
+            // content kinds tagged 'turn_usage'.
+            const synthIn = totalInputTokens ?? 0
+            const synthOut = totalOutputTokens ?? 0
+            const synthCacheCreate = totalCacheCreationInputTokens ?? 0
+            const synthCacheRead = totalCacheReadInputTokens ?? 0
+            if (
+              usage &&
+              turnEntries.length === 0 &&
+              synthIn + synthOut + synthCacheCreate + synthCacheRead > 0
+            ) {
+              await Message.create({
+                conversationId,
+                role: 'assistant',
+                content: { kind: 'turn_usage' },
+                inputTokens: synthIn,
+                outputTokens: synthOut,
+                cacheCreationInputTokens: synthCacheCreate,
+                cacheReadInputTokens: synthCacheRead,
+              })
             }
           }
           sse.write('result', event.data)
@@ -159,6 +240,9 @@ export async function runConversationTurn({
         }
         case 'tool_progress':
           sse.write('tool_progress', event.data)
+          break
+        case 'memory_recall':
+          writePassthroughEventToSse(event, sse)
           break
         case 'error':
           sse.write('error', event.data)

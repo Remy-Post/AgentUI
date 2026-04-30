@@ -43,11 +43,38 @@ router.get('/:id', async (req, res) => {
 const EFFORT_VALUES = ['low', 'medium', 'high'] as const
 type Effort = (typeof EFFORT_VALUES)[number]
 
+const COLOR_VALUES = ['slate', 'sky', 'emerald', 'amber', 'rose', 'violet', 'stone'] as const
+type Color = (typeof COLOR_VALUES)[number]
+
 router.patch('/:id', async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'invalid_id' })
   const body = (req.body ?? {}) as Record<string, unknown>
   const update: Record<string, unknown> = {}
-  if (typeof body.title === 'string') update.title = body.title
+  if (typeof body.title === 'string') {
+    const trimmed = body.title.trim()
+    if (trimmed.length < 4) return res.status(400).json({ error: 'title_too_short' })
+    update.title = trimmed
+  }
+  if (typeof body.description === 'string') {
+    const trimmed = body.description.trim()
+    const words = trimmed ? trimmed.split(/\s+/).length : 0
+    if (words !== 0 && (words < 10 || words > 500)) {
+      return res.status(400).json({ error: 'description_word_count' })
+    }
+    update.description = body.description
+  }
+  if ('color' in body) {
+    if (body.color === null) {
+      update.color = null
+    } else if (typeof body.color === 'string') {
+      if (!COLOR_VALUES.includes(body.color as Color)) {
+        return res.status(400).json({ error: 'invalid_color' })
+      }
+      update.color = body.color
+    } else {
+      return res.status(400).json({ error: 'invalid_color' })
+    }
+  }
   if (typeof body.effort === 'string') {
     if (!EFFORT_VALUES.includes(body.effort as Effort)) {
       return res.status(400).json({ error: 'invalid_effort' })

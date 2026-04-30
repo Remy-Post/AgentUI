@@ -2,19 +2,23 @@ import { useViewStore, type SettingsTab } from '../../store/view'
 import ApiKeyTab from './ApiKeyTab'
 import ModelTab from './ModelTab'
 import BudgetTab from './BudgetTab'
+import SdkMemoryTab from './SdkMemoryTab'
 import SubagentsTab from './SubagentsTab'
 import SkillsTab from './SkillsTab'
 import ToolsTab from './ToolsTab'
 import ConversationsTab from './ConversationsTab'
+import KeybindsTab from './KeybindsTab'
 
 const LEFT_TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'model', label: 'Model' },
   { id: 'budget', label: 'Budget' },
+  { id: 'memory', label: 'SDK Memory' },
   { id: 'skills', label: 'Skills' },
   { id: 'subagents', label: 'Subagents' }
 ]
 
 const RIGHT_TABS: Array<{ id: SettingsTab; label: string }> = [
+  { id: 'keybinds', label: 'Keybinds' },
   { id: 'tools', label: 'Tools' },
   { id: 'api', label: 'Keys' },
   { id: 'conversations', label: 'All conversations' }
@@ -63,9 +67,11 @@ export default function SettingsView({ onSelectConversation }: Props): React.JSX
         {settingsTab === 'api' && <ApiKeyTab />}
         {settingsTab === 'model' && <ModelTab />}
         {settingsTab === 'budget' && <BudgetTab />}
+        {settingsTab === 'memory' && <SdkMemoryTab />}
         {settingsTab === 'subagents' && <SubagentsTab />}
         {settingsTab === 'skills' && <SkillsTab />}
         {settingsTab === 'tools' && <ToolsTab />}
+        {settingsTab === 'keybinds' && <KeybindsTab />}
         {settingsTab === 'conversations' && (
           <ConversationsTab onSelectConversation={onSelectConversation} />
         )}

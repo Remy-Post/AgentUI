@@ -1,6 +1,7 @@
 import { PanelRight } from 'lucide-react'
-import EffortPopover from './EffortPopover'
+import EffortToggle from './EffortToggle'
 import ContextsChip from './ContextsChip'
+import { useKeybindShortcut } from '../hooks/useKeybinds'
 import { formatStartedAt } from '../lib/format'
 import type { ConversationDTO, MessageDTO } from '@shared/types'
 
@@ -17,6 +18,12 @@ export default function ChatHeader({
   inspectorOpen,
   onToggleInspector
 }: Props): React.JSX.Element {
+  const inspectorShortcut = useKeybindShortcut('inspector.toggle')
+  const inspectorLabel = inspectorOpen ? 'Hide run inspector' : 'Show run inspector'
+  const inspectorTitle = inspectorShortcut
+    ? `${inspectorLabel} (${inspectorShortcut})`
+    : inspectorLabel
+
   return (
     <header className="chat-header">
       <div style={{ minWidth: 0 }}>
@@ -28,14 +35,14 @@ export default function ChatHeader({
         </div>
       </div>
       <div className="chips">
-        <EffortPopover conversation={conversation} />
+        <EffortToggle conversation={conversation} />
         <ContextsChip conversation={conversation} />
         <button
           type="button"
           className="inspector-toggle"
           aria-pressed={inspectorOpen}
           onClick={onToggleInspector}
-          title={inspectorOpen ? 'Hide run inspector (⌘.)' : 'Show run inspector (⌘.)'}
+          title={inspectorTitle}
         >
           <PanelRight />
         </button>

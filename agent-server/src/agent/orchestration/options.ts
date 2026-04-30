@@ -43,6 +43,9 @@ export type RuntimeConfig = {
   skills: RuntimeSkillRecord[]
   useOneMillionContext: boolean
   useFastMode: boolean
+  autoMemoryEnabled: boolean
+  autoMemoryDirectory: string
+  autoDreamEnabled: boolean
 }
 
 function idString(value: unknown): string {
@@ -67,6 +70,9 @@ export async function loadRuntimeConfig(conversation: RuntimeConversation): Prom
     Settings.findOne({ key: 'global' }).lean<{
       useOneMillionContext?: boolean
       useFastMode?: boolean
+      autoMemoryEnabled?: boolean
+      autoMemoryDirectory?: string
+      autoDreamEnabled?: boolean
     } | null>(),
   ])
 
@@ -90,6 +96,13 @@ export async function loadRuntimeConfig(conversation: RuntimeConversation): Prom
             subagent.mcpServices.filter((service): service is string => typeof service === 'string'),
           )
           : undefined,
+        memory:
+          subagent.memory === 'user'
+          || subagent.memory === 'project'
+          || subagent.memory === 'local'
+          || subagent.memory === 'none'
+            ? subagent.memory
+            : undefined,
       })),
       conversation.attachedSubagentIds,
     ),
@@ -103,7 +116,22 @@ export async function loadRuntimeConfig(conversation: RuntimeConversation): Prom
     ),
     useOneMillionContext: Boolean(settingsDoc?.useOneMillionContext),
     useFastMode: Boolean(settingsDoc?.useFastMode),
+    autoMemoryEnabled: settingsDoc?.autoMemoryEnabled !== false,
+    autoMemoryDirectory:
+      typeof settingsDoc?.autoMemoryDirectory === 'string' ? settingsDoc.autoMemoryDirectory : '',
+    autoDreamEnabled: Boolean(settingsDoc?.autoDreamEnabled),
   }
+}
+
+export function buildSdkSettings(runtime: RuntimeConfig, fastModeActive: boolean): Record<string, unknown> {
+  const settings: Record<string, unknown> = {
+    autoMemoryEnabled: runtime.autoMemoryEnabled !== false,
+    autoDreamEnabled: Boolean(runtime.autoDreamEnabled),
+  }
+  const autoMemoryDirectory = runtime.autoMemoryDirectory.trim()
+  if (autoMemoryDirectory) settings.autoMemoryDirectory = autoMemoryDirectory
+  if (fastModeActive) settings.fastMode = true
+  return settings
 }
 
 export function buildQueryOptionsFromRuntime(
@@ -129,7 +157,7 @@ export function buildQueryOptionsFromRuntime(
     planModeInstructions: planActive ? PLAN_MODE_INSTRUCTIONS : undefined,
     settingSources: ['project'],
     betas: oneMActive ? [ONE_MILLION_CONTEXT_BETA] : undefined,
-    settings: fastModeActive ? { fastMode: true } : undefined,
+    settings: buildSdkSettings(runtime, fastModeActive),
     hooks: {
       PreToolUse: [
         {

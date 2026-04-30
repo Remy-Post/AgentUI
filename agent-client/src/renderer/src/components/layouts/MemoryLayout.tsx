@@ -6,14 +6,14 @@ function MemorySidebarBody(): React.JSX.Element {
   return (
     <>
       <div className="recent-cap" style={{ paddingTop: 16 }}>
-        <span className="cap">Memory</span>
+        <span className="cap">Notes</span>
       </div>
       <ul className="conv-list">
         <li className="conv-item active">
           <div className="dot" />
           <div style={{ minWidth: 0 }}>
             <div className="conv-row">
-              <div className="conv-title">All memories</div>
+              <div className="conv-title">All notes</div>
             </div>
             <div className="conv-meta">
               <span className="chrome">local · editable</span>

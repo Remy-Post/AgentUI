@@ -5,7 +5,7 @@
   "main": "dist/src/server.js",
   "scripts": {
     "dev": "tsx --watch src/server.ts",
-    "cli": "tsx watch src/main.ts",
+    "cli": "tsx src/main.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.server.json",
     "build:all": "tsc",

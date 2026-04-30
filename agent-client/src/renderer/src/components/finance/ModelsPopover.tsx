@@ -13,9 +13,14 @@ export const ALL_MODEL_IDS: string[] = OPTIONS.map((o) => o.id)
 type Props = {
   selected: string[]
   onChange: (next: string[]) => void
+  buttonClassName?: string
 }
 
-export default function ModelsPopover({ selected, onChange }: Props): React.JSX.Element {
+export default function ModelsPopover({
+  selected,
+  onChange,
+  buttonClassName
+}: Props): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
 
@@ -57,11 +62,11 @@ export default function ModelsPopover({ selected, onChange }: Props): React.JSX.
     <div ref={wrapRef} style={{ position: 'relative' }}>
       <button
         type="button"
-        className="chip button"
+        className={`chip button${buttonClassName ? ` ${buttonClassName}` : ''}`}
         onClick={() => setOpen((s) => !s)}
         aria-pressed={open}
       >
-        claude · {label}
+        <span className="model-popover-label">claude · {label}</span>
       </button>
       {open && (
         <div className="popover" style={{ top: 'calc(100% + 6px)', right: 0 }} role="dialog">

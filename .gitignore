@@ -54,5 +54,9 @@ Desktop.ini
 .claude/settings.local.json
 .claude/agents/
 .claude/skills/
+.claude/agent-memory/
+.claude/agent-memory-local/
 agent-server/.claude/agents/
 agent-server/.claude/skills/
+agent-server/.claude/agent-memory/
+agent-server/.claude/agent-memory-local/

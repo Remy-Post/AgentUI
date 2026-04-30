@@ -1,9 +1,14 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import mongoose from 'mongoose'
 import { buildAgentDefinitions, ORCHESTRATOR_AGENT_NAME } from './agents.ts'
 import { ensureTurnSubagents, planDynamicSubagentTasks } from './dynamicSubagents.ts'
 import { buildQueryOptionsFromRuntime } from './options.ts'
 import { normalizeSdkMessage } from './events.ts'
+import { writeSubagentFile } from '../scaffold.ts'
 import { expandToolNames, makeToolPermissionPolicy, resolveToolPolicy } from './toolPolicy.ts'
 import { DEFAULT_TOOLS, LEGACY_TOOL_ALIASES, buildToolRegistryUpsert } from './defaultTools.ts'
 import { buildGwsCallArgs, GwsCommandError } from '../../mcp/gwsCommand.ts'
@@ -62,6 +67,10 @@ test('catalog includes documented tools, metadata, quick pins, and legacy aliase
     'WebSearch',
     'Write',
     'MultiEdit',
+    'notes.read',
+    'notes.create',
+    'notes.update',
+    'notes.delete',
   ]) {
     assert.equal(ids.has(id), true, `${id} missing from tool catalog`)
   }
@@ -114,6 +123,20 @@ test('maps canonical SDK tools and db toggles without leaking db ids into built-
   assert.deepEqual(expandToolNames(['mongodb.read', 'Read']), ['Read'])
 })
 
+test('maps notes toggles without leaking notes ids into built-ins', () => {
+  const policy = resolveToolPolicy([
+    { id: 'Read', enabled: true },
+    { id: 'notes.read', enabled: true },
+    { id: 'notes.delete', enabled: false },
+  ])
+
+  assert.deepEqual(policy.availableTools, ['Agent', 'Read'])
+  assert.equal(policy.enabledNotesToolIds.has('notes.read'), true)
+  assert.equal(policy.enabledNotesToolIds.has('notes.delete'), false)
+  assert.equal(policy.enabledSdkTools.has('notes.read'), false)
+  assert.deepEqual(expandToolNames(['notes.read', 'Read']), ['Read'])
+})
+
 test('does not leak Google Workspace service toggles into SDK tools', () => {
   const policy = resolveToolPolicy([
     { id: 'read_file', enabled: true },
@@ -128,13 +151,48 @@ test('does not leak Google Workspace service toggles into SDK tools', () => {
   assert.equal(policy.enabledWorkspaceServices.has('gmail'), false)
 })
 
-test('denies parent direct tool use while allowing Agent delegation', async () => {
+test('parent allowed to call Agent and any enabled SDK tool directly', async () => {
   const policy = resolveToolPolicy([{ id: 'read_file', enabled: true }])
   const canUseTool = makeToolPermissionPolicy(policy)
 
   assert.equal((await canUseTool('Agent', {}, permissionOptions)).behavior, 'allow')
   const directRead = await canUseTool('Read', { file_path: 'README.md' }, permissionOptions)
-  assert.equal(directRead.behavior, 'deny')
+  assert.equal(directRead.behavior, 'allow')
+})
+
+test('parent denied disabled SDK tools with the AgentUI policy message', async () => {
+  const policy = resolveToolPolicy([{ id: 'read_file', enabled: true }])
+  const canUseTool = makeToolPermissionPolicy(policy)
+
+  const result = await canUseTool('Bash', { command: 'echo hi' }, permissionOptions)
+  assert.equal(result.behavior, 'deny')
+  if (result.behavior === 'deny') {
+    assert.match(result.message, /AgentUI tool policy/)
+  }
+})
+
+test('subagent denied from spawning another Agent (no nested delegation)', async () => {
+  const policy = resolveToolPolicy([{ id: 'read_file', enabled: true }])
+  const canUseTool = makeToolPermissionPolicy(policy)
+
+  const result = await canUseTool('Agent', {}, { ...permissionOptions, agentID: 'sub-1' })
+  assert.equal(result.behavior, 'deny')
+})
+
+test('parent denied forbidden Bash commands', async () => {
+  const policy = resolveToolPolicy([{ id: 'shell.exec', enabled: true }])
+  const canUseTool = makeToolPermissionPolicy(policy)
+
+  const result = await canUseTool('Bash', { command: 'rm -rf /' }, permissionOptions)
+  assert.equal(result.behavior, 'deny')
+})
+
+test('parent denied sensitive .env path access', async () => {
+  const policy = resolveToolPolicy([{ id: 'edit_file', enabled: true }])
+  const canUseTool = makeToolPermissionPolicy(policy)
+
+  const result = await canUseTool('Edit', { file_path: '.env' }, permissionOptions)
+  assert.equal(result.behavior, 'deny')
 })
 
 test('denies sensitive file access from subagents', async () => {
@@ -170,6 +228,62 @@ test('narrows subagent tools to the enabled SDK surface', () => {
   assert.deepEqual(agents[ORCHESTRATOR_AGENT_NAME].tools, ['Agent'])
   assert.deepEqual(agents.custom_worker.tools, ['Read', 'Grep'])
   assert.equal(agents.custom_worker.disallowedTools?.includes('Bash'), true)
+})
+
+test('passes subagent SDK memory scope when enabled', () => {
+  const policy = resolveToolPolicy([{ id: 'read_file', enabled: true }])
+  const agents = buildAgentDefinitions(policy, [
+    {
+      name: 'memory worker',
+      description: 'Memory worker',
+      prompt: 'Remember scoped work.',
+      tools: ['read_file'],
+      memory: 'local',
+    },
+    {
+      name: 'stateless worker',
+      description: 'Stateless worker',
+      prompt: 'Do not persist memory.',
+      tools: ['read_file'],
+      memory: 'none',
+    },
+  ])
+
+  assert.equal(agents.memory_worker.memory, 'local')
+  assert.equal(agents.stateless_worker.memory, undefined)
+})
+
+test('materializes subagent memory frontmatter only when enabled', async () => {
+  const previousRoot = process.env.AGENT_SCAFFOLD_ROOT
+  const root = await mkdtemp(join(tmpdir(), 'agentui-memory-frontmatter-'))
+  process.env.AGENT_SCAFFOLD_ROOT = root
+  try {
+    await writeSubagentFile({
+      _id: new mongoose.Types.ObjectId(),
+      name: 'memory_worker',
+      description: 'Memory worker',
+      prompt: 'Remember scoped work.',
+      memory: 'local',
+      enabled: true,
+    } as never)
+    const content = await readFile(join(root, '.claude', 'agents', 'memory_worker.md'), 'utf8')
+    assert.match(content, /memory: local/)
+
+    await writeSubagentFile({
+      _id: new mongoose.Types.ObjectId(),
+      name: 'stateless_worker',
+      description: 'Stateless worker',
+      prompt: 'Do not persist memory.',
+      memory: 'none',
+      enabled: true,
+    } as never)
+    const stateless = await readFile(join(root, '.claude', 'agents', 'stateless_worker.md'), 'utf8')
+    assert.doesNotMatch(stateless, /memory:/)
+  } finally {
+    if (previousRoot === undefined) delete process.env.AGENT_SCAFFOLD_ROOT
+    else process.env.AGENT_SCAFFOLD_ROOT = previousRoot
+    await rm(root, { recursive: true, force: true })
+  }
 })
 
 test('attaches Google Workspace MCP only to scoped subagents', () => {
@@ -214,6 +328,61 @@ test('attaches database MCP only to scoped subagents with enabled db tools', () 
   const serverSpec = agents.db_worker.mcpServers?.[0] as Record<string, { env?: Record<string, string> }>
   assert.equal(serverSpec.agentui_db.env?.AGENTUI_DB_ALLOWED_TOOLS, 'mongodb.read,mysql.read')
   assert.ok(serverSpec.agentui_db.env?.[process.platform === 'win32' ? 'Path' : 'PATH'])
+})
+
+test('attaches Notes MCP to subagents with enabled note operations', () => {
+  const policy = resolveToolPolicy([
+    { id: 'notes.read', enabled: true },
+    { id: 'notes.create', enabled: true },
+    { id: 'notes.update', enabled: true },
+    { id: 'notes.delete', enabled: true },
+  ])
+  const agents = buildAgentDefinitions(policy, [
+    {
+      name: 'notes worker',
+      description: 'Notes worker',
+      prompt: 'Handle notes.',
+    },
+  ])
+
+  assert.equal(agents[ORCHESTRATOR_AGENT_NAME].mcpServers, undefined)
+  assert.deepEqual(agents.notes_worker.tools, [
+    'mcp__agentui_notes__notes_search',
+    'mcp__agentui_notes__notes_get',
+    'mcp__agentui_notes__notes_create',
+    'mcp__agentui_notes__notes_update',
+    'mcp__agentui_notes__notes_delete',
+  ])
+  assert.equal(agents.notes_worker.mcpServers?.length, 1)
+  const serverSpec = agents.notes_worker.mcpServers?.[0] as Record<string, { env?: Record<string, string> }>
+  assert.equal(
+    serverSpec.agentui_notes.env?.AGENTUI_NOTES_ALLOWED_TOOLS,
+    'notes.read,notes.create,notes.update,notes.delete',
+  )
+})
+
+test('narrows Notes MCP operations for explicitly scoped subagents', () => {
+  const policy = resolveToolPolicy([
+    { id: 'notes.read', enabled: true },
+    { id: 'notes.create', enabled: false },
+    { id: 'notes.delete', enabled: true },
+  ])
+  const agents = buildAgentDefinitions(policy, [
+    {
+      name: 'notes worker',
+      description: 'Notes worker',
+      prompt: 'Handle selected notes operations.',
+      tools: ['notes.read', 'notes.create', 'notes.delete'],
+    },
+  ])
+
+  assert.deepEqual(agents.notes_worker.tools, [
+    'mcp__agentui_notes__notes_search',
+    'mcp__agentui_notes__notes_get',
+    'mcp__agentui_notes__notes_delete',
+  ])
+  const serverSpec = agents.notes_worker.mcpServers?.[0] as Record<string, { env?: Record<string, string> }>
+  assert.equal(serverSpec.agentui_notes.env?.AGENTUI_NOTES_ALLOWED_TOOLS, 'notes.read,notes.delete')
 })
 
 test('does not inject hidden runtime subagents when Mongo has none selected', () => {
@@ -285,6 +454,28 @@ test('plans database tasks with only enabled operation toggles', () => {
   assert.deepEqual(tasks[0].tools, ['mongodb.read', 'mongodb.update'])
 })
 
+test('plans Notes tasks with only enabled operation toggles', () => {
+  const policy = resolveToolPolicy([
+    { id: 'notes.read', enabled: true },
+    { id: 'notes.create', enabled: true },
+    { id: 'notes.update', enabled: false },
+    { id: 'notes.delete', enabled: true },
+  ])
+  const tasks = planDynamicSubagentTasks(
+    [
+      '- Remember this in my notes: compact responses are preferred',
+      '- Search my notes for AgentUI preferences',
+      '- Forget the obsolete setup note',
+    ].join('\n'),
+    policy,
+    { _id: 'conversation-1', model: 'claude-sonnet-4' },
+  )
+
+  assert.equal(tasks.length, 3)
+  assert.deepEqual(tasks.map((task) => task.kind), ['notes', 'notes', 'notes'])
+  assert.deepEqual(tasks.map((task) => task.tools), [['notes.create'], ['notes.read'], ['notes.read', 'notes.delete']])
+})
+
 test('database MCP permission policy gates operations by toggle', async () => {
   const policy = resolveToolPolicy([
     { id: 'mongodb.read', enabled: true },
@@ -298,6 +489,23 @@ test('database MCP permission policy gates operations by toggle', async () => {
   )
   assert.equal(
     (await canUseTool('mcp__agentui_db__db_mongodb_delete', {}, { ...permissionOptions, agentID: 'agent-1' })).behavior,
+    'deny',
+  )
+})
+
+test('Notes MCP permission policy gates operations by toggle', async () => {
+  const policy = resolveToolPolicy([
+    { id: 'notes.read', enabled: true },
+    { id: 'notes.delete', enabled: false },
+  ])
+  const canUseTool = makeToolPermissionPolicy(policy)
+
+  assert.equal(
+    (await canUseTool('mcp__agentui_notes__notes_search', {}, { ...permissionOptions, agentID: 'agent-1' })).behavior,
+    'allow',
+  )
+  assert.equal(
+    (await canUseTool('mcp__agentui_notes__notes_delete', {}, { ...permissionOptions, agentID: 'agent-1' })).behavior,
     'deny',
   )
 })
@@ -457,6 +665,9 @@ test('builds resume-aware query options without changing the SSE contract', () =
       skills: [{ name: 'repo-scout' }],
       useOneMillionContext: false,
       useFastMode: false,
+      autoMemoryEnabled: true,
+      autoMemoryDirectory: '',
+      autoDreamEnabled: false,
     },
   )
 
@@ -466,7 +677,33 @@ test('builds resume-aware query options without changing the SSE contract', () =
   assert.deepEqual(options.skills, ['repo-scout'])
   assert.deepEqual(Object.keys(options.agents ?? {}), [ORCHESTRATOR_AGENT_NAME])
   assert.equal(options.betas, undefined)
-  assert.equal(options.settings, undefined)
+  assert.deepEqual(options.settings, { autoMemoryEnabled: true, autoDreamEnabled: false })
+})
+
+test('query options merge auto-memory and fast-mode settings', () => {
+  const options = buildQueryOptionsFromRuntime(
+    {
+      _id: 'conversation-1',
+      model: 'claude-opus-4-7',
+    },
+    {
+      tools: [{ id: 'read_file', enabled: true }],
+      subagents: [],
+      skills: [],
+      useOneMillionContext: false,
+      useFastMode: true,
+      autoMemoryEnabled: false,
+      autoMemoryDirectory: '~/agentui-memory',
+      autoDreamEnabled: true,
+    },
+  )
+
+  assert.deepEqual(options.settings, {
+    autoMemoryEnabled: false,
+    autoDreamEnabled: true,
+    autoMemoryDirectory: '~/agentui-memory',
+    fastMode: true,
+  })
 })
 
 test('normalizes SDK progress messages to existing SSE event names', () => {
@@ -483,4 +720,19 @@ test('normalizes SDK progress messages to existing SSE event names', () => {
 
   assert.equal(event?.name, 'tool_progress')
   assert.equal(event?.data.tool_name, 'Grep')
+})
+
+test('normalizes SDK memory recall messages', () => {
+  const event = normalizeSdkMessage({
+    type: 'system',
+    subtype: 'memory_recall',
+    mode: 'select',
+    memories: [{ path: '/tmp/memory.md', scope: 'personal' }],
+    uuid: '00000000-0000-4000-8000-000000000001',
+    session_id: 'session-1',
+  })
+
+  assert.equal(event?.name, 'memory_recall')
+  assert.equal(event?.data.mode, 'select')
+  assert.deepEqual(event?.data.memories, [{ path: '/tmp/memory.md', scope: 'personal' }])
 })

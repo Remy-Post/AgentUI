@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Check, AlertCircle, Plug, KeyRound, ShieldCheck } from 'lucide-react'
 import { apiFetch, getServerOrigin } from '../../lib/api'
@@ -29,8 +29,21 @@ export default function ApiKeyTab(): React.JSX.Element {
   const [githubToken, setGithubToken] = useState('')
   const [apiStatus, setApiStatus] = useState<Status>(null)
   const [githubStatus, setGithubStatus] = useState<Status>(null)
+  const [testResult, setTestResult] = useState<'ok' | 'err' | null>(null)
   const [testing, setTesting] = useState(false)
   const [savingGithub, setSavingGithub] = useState(false)
+  const testResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (testResetTimer.current) clearTimeout(testResetTimer.current)
+    }
+  }, [])
+
+  const scheduleTestResultClear = (): void => {
+    if (testResetTimer.current) clearTimeout(testResetTimer.current)
+    testResetTimer.current = setTimeout(() => setTestResult(null), 3000)
+  }
 
   const hasKeyQuery = useQuery({ queryKey: ['hasApiKey'], queryFn: () => window.api.hasApiKey() })
   const hasGithubTokenQuery = useQuery({
@@ -40,6 +53,7 @@ export default function ApiKeyTab(): React.JSX.Element {
 
   const save = async (): Promise<void> => {
     setApiStatus(null)
+    setTestResult(null)
     if (!key.trim()) {
       setApiStatus({ kind: 'err', message: 'Enter a key first.' })
       return
@@ -98,27 +112,27 @@ export default function ApiKeyTab(): React.JSX.Element {
 
   const test = async (): Promise<void> => {
     setApiStatus(null)
+    setTestResult(null)
+    if (testResetTimer.current) clearTimeout(testResetTimer.current)
     setTesting(true)
     try {
       const origin = await getServerOrigin()
       if (!origin) {
-        setApiStatus({ kind: 'err', message: 'Server not reachable.' })
+        setTestResult('err')
         return
       }
       const res = await fetch(`${origin}/health`)
       if (!res.ok) {
-        setApiStatus({ kind: 'err', message: `Health check returned ${res.status}.` })
+        setTestResult('err')
         return
       }
       const json = (await res.json()) as { db?: string; sdk?: string }
-      setApiStatus({
-        kind: json.db === 'up' && json.sdk === 'ready' ? 'ok' : 'err',
-        message: `db: ${json.db ?? '?'} - sdk: ${json.sdk ?? '?'}`
-      })
-    } catch (error) {
-      setApiStatus({ kind: 'err', message: error instanceof Error ? error.message : 'unknown error' })
+      setTestResult(json.db === 'up' && json.sdk === 'ready' ? 'ok' : 'err')
+    } catch {
+      setTestResult('err')
     } finally {
       setTesting(false)
+      scheduleTestResultClear()
     }
   }
 
@@ -167,7 +181,12 @@ export default function ApiKeyTab(): React.JSX.Element {
             <button type="button" className="btn-primary" onClick={save}>
               <Check size={12} /> Save key
             </button>
-            <button type="button" className="btn-secondary" onClick={test} disabled={testing}>
+            <button
+              type="button"
+              className={`btn-secondary${testResult ? ` ${testResult}` : ''}`}
+              onClick={test}
+              disabled={testing}
+            >
               <Plug size={12} /> {testing ? 'Testing...' : 'Test connection'}
             </button>
           </div>

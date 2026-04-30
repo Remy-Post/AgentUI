@@ -12,6 +12,9 @@ const SettingsSchema = new mongoose.Schema(
     // toggles when the active default model supports the underlying feature.
     useOneMillionContext: { type: Boolean, default: false },
     useFastMode: { type: Boolean, default: false },
+    autoMemoryEnabled: { type: Boolean, default: true },
+    autoMemoryDirectory: { type: String, default: '' },
+    autoDreamEnabled: { type: Boolean, default: false },
   },
   { timestamps: true },
 )

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import SparkBars from './SparkBars'
 import ConversationDrillDown from './ConversationDrillDown'
 import ModelsPopover, { ALL_MODEL_IDS } from './ModelsPopover'
+import WindowToggle from './WindowToggle'
 import { useFinance, type FinanceWindow } from '../../hooks/useFinance'
 import { apiFetch, getServerOrigin } from '../../lib/api'
 import { formatUsd } from '../../lib/format'
@@ -96,10 +97,10 @@ type Props = {
 }
 
 const WINDOW_LABEL: Record<FinanceWindow, string> = {
-  '24h': 'Last 24 hours',
-  '7d': 'Last 7 days',
-  '30d': 'This month',
-  all: 'All time'
+  '24h': '24H',
+  '7d': '7D',
+  '30d': '30D',
+  all: 'ALL'
 }
 
 type ExportStatus = { kind: 'ok' | 'err'; message: string } | null
@@ -202,23 +203,20 @@ export default function FinanceView({
             )}
           </div>
         </div>
-        <div className="chips">
-          <ModelsPopover selected={selectedModels} onChange={setSelectedModels} />
-          <select
-            className="select"
+        <div className="chips finance-header-actions">
+          <ModelsPopover
+            selected={selectedModels}
+            onChange={setSelectedModels}
+            buttonClassName="finance-header-control"
+          />
+          <WindowToggle
             value={windowValue}
-            onChange={(e) => setWindow(e.target.value as FinanceWindow)}
-            style={{ width: 'auto' }}
-          >
-            {(Object.keys(WINDOW_LABEL) as FinanceWindow[]).map((w) => (
-              <option key={w} value={w}>
-                {WINDOW_LABEL[w]}
-              </option>
-            ))}
-          </select>
+            onChange={setWindow}
+            className="finance-header-control"
+          />
           <button
             type="button"
-            className="btn-secondary"
+            className="btn-secondary finance-header-control"
             onClick={exportCsv}
             disabled={exporting}
           >

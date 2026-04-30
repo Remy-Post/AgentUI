@@ -11,6 +11,7 @@ import {
   NotebookPen,
   Route,
   ShieldCheck,
+  StickyNote,
   SquareKanban,
   Wrench,
   type LucideIcon
@@ -72,6 +73,14 @@ const CATEGORY_DEFS: ToolCategory[] = [
     icon: Cloud,
     defaultOpen: true,
     order: 50
+  },
+  {
+    id: 'notes',
+    label: 'Notes',
+    description: 'Agent access to user-visible AgentUI Notes.',
+    icon: StickyNote,
+    defaultOpen: true,
+    order: 55
   },
   {
     id: 'planning',

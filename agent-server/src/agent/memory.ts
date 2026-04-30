@@ -70,13 +70,21 @@ export async function findRelevantMemories(input: string, limit = 6): Promise<Me
   const search = input.trim()
   if (!search) return []
 
-  const docs = await Memory.find(
-    { $text: { $search: search } },
-    { score: { $meta: 'textScore' } },
-  )
-    .sort({ score: { $meta: 'textScore' }, updatedAt: -1 })
-    .limit(Math.max(1, Math.min(limit, 20)))
-    .lean<MemoryLike[]>()
+  try {
+    const docs = await Memory.find(
+      { $text: { $search: search } },
+      { score: { $meta: 'textScore' } },
+    )
+      .sort({ score: { $meta: 'textScore' }, updatedAt: -1 })
+      .limit(Math.max(1, Math.min(limit, 20)))
+      .lean<MemoryLike[]>()
 
-  return docs.map(toMemoryDTO)
+    return docs.map(toMemoryDTO)
+  } catch (error) {
+    // Text index is created lazily on first insert; treat any indexing or
+    // transient failure here as "no recall available" so callers don't crash.
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn('[memory] findRelevantMemories failed:', message)
+    return []
+  }
 }

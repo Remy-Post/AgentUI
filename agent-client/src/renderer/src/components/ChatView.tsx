@@ -76,6 +76,9 @@ export default function ChatView({
               case 'tool_progress':
                 streaming.pushToolEvent(data as { tool_name: string })
                 break
+              case 'memory_recall':
+                streaming.pushMemoryRecall(data as { mode?: string; memories?: unknown[] })
+                break
               case 'result':
                 streaming.end()
                 queryClient.invalidateQueries({ queryKey: ['messages', conversationId] })

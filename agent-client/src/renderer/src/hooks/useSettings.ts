@@ -6,6 +6,7 @@ export function useSettings(): {
   data: SettingsDTO | undefined
   isLoading: boolean
   update: (partial: UpdateSettingsRequest) => void
+  updateAsync: (partial: UpdateSettingsRequest) => Promise<SettingsDTO>
 } {
   const queryClient = useQueryClient()
   const query = useQuery({
@@ -39,6 +40,7 @@ export function useSettings(): {
   return {
     data: query.data,
     isLoading: query.isLoading,
-    update: (partial) => mutation.mutate(partial)
+    update: (partial) => mutation.mutate(partial),
+    updateAsync: (partial) => mutation.mutateAsync(partial)
   }
 }

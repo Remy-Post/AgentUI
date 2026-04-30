@@ -3,12 +3,18 @@ import { fileURLToPath } from 'node:url'
 import type { AgentDefinition, PermissionMode } from '@anthropic-ai/claude-agent-sdk'
 import type { GoogleWorkspaceService } from '../../mcp/gwsTypes.ts'
 import type { DbToolId } from '../../mcp/dbTypes.ts'
+import {
+  NOTES_MCP_TOOL_TO_TOGGLE,
+  type NotesToolId,
+  uniqueNotesToolIds,
+} from '../../mcp/notesTypes.ts'
 import type { TurnMode } from '../../shared/types.ts'
 import type { RuntimeToolPolicy } from './toolPolicy.ts'
 import {
   AGENT_TOOL_NAME,
   expandToolNames,
   filterEnabledDbToolIds,
+  filterEnabledNotesToolIds,
   filterEnabledSdkTools,
   filterEnabledWorkspaceServices,
 } from './toolPolicy.ts'
@@ -64,6 +70,7 @@ export type RuntimeSubagentRecord = {
   tools?: string[]
   disallowedTools?: string[]
   mcpServices?: GoogleWorkspaceService[]
+  memory?: 'user' | 'project' | 'local' | 'none'
 }
 
 const ORCHESTRATOR_PROMPT = [
@@ -111,6 +118,11 @@ function asEffort(value: string | undefined): AgentDefinition['effort'] | undefi
   return undefined
 }
 
+function asMemoryScope(value: string | undefined): AgentDefinition['memory'] | undefined {
+  if (value === 'user' || value === 'project' || value === 'local') return value
+  return undefined
+}
+
 function mapConversationEffort(
   value: 'low' | 'medium' | 'high' | undefined,
 ): AgentDefinition['effort'] {
@@ -138,6 +150,10 @@ function dbServerScriptPath(): string {
   return mcpServerScriptPath('dbServer')
 }
 
+function notesServerScriptPath(): string {
+  return mcpServerScriptPath('notesServer')
+}
+
 function mcpServerScriptPath(name: string): string {
   const thisFile = fileURLToPath(import.meta.url)
   const extension = thisFile.endsWith('.ts') ? 'ts' : 'js'
@@ -155,6 +171,10 @@ function gwsServerArgs(): string[] {
 
 function dbServerArgs(): string[] {
   return mcpServerArgs(dbServerScriptPath())
+}
+
+function notesServerArgs(): string[] {
+  return mcpServerArgs(notesServerScriptPath())
 }
 
 function envValue(name: string): string | undefined {
@@ -234,6 +254,16 @@ function buildDbMcpEnv(toolIds: DbToolId[]): Record<string, string> {
   }
 }
 
+function buildNotesMcpEnv(toolIds: NotesToolId[]): Record<string, string> {
+  const env: Record<string, string> = {
+    ...buildBaseMcpEnv(),
+    AGENTUI_NOTES_ALLOWED_TOOLS: toolIds.join(','),
+  }
+  const mongodbUri = envValue('MONGODB_URI')
+  if (mongodbUri) env.MONGODB_URI = mongodbUri
+  return env
+}
+
 function gwsMcpServerName(services: GoogleWorkspaceService[]): string {
   return `agentui_gws_${services.join('_')}`
 }
@@ -279,6 +309,42 @@ function buildDbMcpServers(toolIds: DbToolId[]): {
   }
 }
 
+function buildNotesMcpServers(toolIds: NotesToolId[]): {
+  mcpServers?: NonNullable<AgentDefinition['mcpServers']>
+  allowedTools: string[]
+} {
+  if (toolIds.length === 0) return { allowedTools: [] }
+  const enabled = new Set(toolIds)
+  const allowedTools = Object.entries(NOTES_MCP_TOOL_TO_TOGGLE)
+    .filter(([, toolId]) => enabled.has(toolId))
+    .map(([toolName]) => `mcp__agentui_notes__${toolName}`)
+
+  return {
+    mcpServers: [
+      {
+        agentui_notes: {
+          type: 'stdio',
+          command: process.execPath,
+          args: notesServerArgs(),
+          env: buildNotesMcpEnv(toolIds),
+        },
+      },
+    ],
+    allowedTools,
+  }
+}
+
+function notesToolIdsForSubagent(
+  source: RuntimeSubagentRecord,
+  policy: RuntimeToolPolicy,
+): NotesToolId[] {
+  const requested = uniqueNotesToolIds(source.tools)
+  if (Array.isArray(source.tools)) {
+    return requested.length > 0 ? filterEnabledNotesToolIds(requested, policy) : []
+  }
+  return Array.from(policy.enabledNotesToolIds)
+}
+
 function buildSubagentDefinition(
   source: RuntimeSubagentRecord,
   policy: RuntimeToolPolicy,
@@ -287,9 +353,11 @@ function buildSubagentDefinition(
   const tools = filterEnabledSdkTools(source.tools ?? [], policy)
   const mcpServices = filterEnabledWorkspaceServices(source.mcpServices, policy)
   const dbToolIds = filterEnabledDbToolIds(source.tools, policy)
+  const notesToolIds = notesToolIdsForSubagent(source, policy)
   const mcp = buildGwsMcpServers(mcpServices)
   const dbMcp = buildDbMcpServers(dbToolIds)
-  const mcpServers = [...(mcp.mcpServers ?? []), ...(dbMcp.mcpServers ?? [])]
+  const notesMcp = buildNotesMcpServers(notesToolIds)
+  const mcpServers = [...(mcp.mcpServers ?? []), ...(dbMcp.mcpServers ?? []), ...(notesMcp.mcpServers ?? [])]
   const disallowedTools = [
     ...policy.disallowedTools,
     ...expandToolNames(source.disallowedTools),
@@ -302,7 +370,8 @@ function buildSubagentDefinition(
     model: source.model,
     effort: effortOverride ?? asEffort(source.effort),
     permissionMode: asPermissionMode(source.permissionMode),
-    tools: unique([...tools, ...mcp.allowedTools, ...dbMcp.allowedTools]),
+    memory: asMemoryScope(source.memory),
+    tools: unique([...tools, ...mcp.allowedTools, ...dbMcp.allowedTools, ...notesMcp.allowedTools]),
     disallowedTools,
     mcpServers: mcpServers.length > 0 ? mcpServers : undefined,
   }

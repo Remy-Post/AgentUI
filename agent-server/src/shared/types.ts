@@ -1,3 +1,12 @@
+export type ConversationColor =
+  | 'slate'
+  | 'sky'
+  | 'emerald'
+  | 'amber'
+  | 'rose'
+  | 'violet'
+  | 'stone'
+
 export type ConversationDTO = {
   _id: string
   title: string
@@ -11,6 +20,8 @@ export type ConversationDTO = {
   effort?: 'low' | 'medium' | 'high'
   attachedSkillIds?: string[]
   attachedSubagentIds?: string[]
+  description?: string
+  color?: ConversationColor | null
   createdAt: string
   updatedAt: string
 }
@@ -33,6 +44,10 @@ export type MessageDTO = {
 }
 
 export type MemoryType = 'preference' | 'fact' | 'project' | 'instruction' | 'note'
+
+export type SubagentMemoryScope = 'user' | 'project' | 'local' | 'none'
+
+export type SdkMemoryScope = 'user' | 'project' | 'local' | 'auto'
 
 export type MemoryDTO = {
   _id: string
@@ -58,6 +73,45 @@ export type CreateMemoryRequest = {
 }
 
 export type UpdateMemoryRequest = Partial<CreateMemoryRequest>
+
+export type SdkMemoryFileDTO = {
+  scope: SdkMemoryScope
+  agentName?: string
+  relativePath: string
+  name: string
+  size: number
+  updatedAt: string
+}
+
+export type SdkMemoryAgentDTO = {
+  agentName: string
+  files: SdkMemoryFileDTO[]
+}
+
+export type SdkMemoryRootDTO = {
+  scope: SdkMemoryScope
+  label: string
+  path: string
+  exists: boolean
+  agents: SdkMemoryAgentDTO[]
+  files: SdkMemoryFileDTO[]
+}
+
+export type SdkMemoryListDTO = {
+  roots: SdkMemoryRootDTO[]
+}
+
+export type SdkMemoryReadDTO = {
+  scope: SdkMemoryScope
+  agentName?: string
+  relativePath: string
+  content: string
+  updatedAt: string
+}
+
+export type UpdateSdkMemoryFileRequest = {
+  content: string
+}
 
 export type ContextBreakdown = {
   systemTokens: number
@@ -183,6 +237,7 @@ export type SubagentDTO = {
   tools?: string[]
   disallowedTools?: string[]
   mcpServices?: Array<'drive' | 'gmail' | 'calendar' | 'sheets' | 'docs' | 'tasks'>
+  memory?: SubagentMemoryScope
   enabled: boolean
 }
 
@@ -196,6 +251,12 @@ export type SettingsDTO = {
   useOneMillionContext: boolean
   /** Enable Claude Code fast mode on Opus family turns. */
   useFastMode: boolean
+  /** Enable Claude Code auto-memory for this project. */
+  autoMemoryEnabled: boolean
+  /** Optional custom Claude Code auto-memory directory. */
+  autoMemoryDirectory: string
+  /** Enable Claude Code background memory consolidation. */
+  autoDreamEnabled: boolean
 }
 
 export type ToolDTO = {
@@ -218,6 +279,8 @@ export type HealthDTO = {
 
 export type UpdateConversationRequest = Partial<{
   title: string
+  description: string
+  color: ConversationColor | null
   effort: 'low' | 'medium' | 'high'
   attachedSkillIds: string[]
   attachedSubagentIds: string[]
@@ -227,6 +290,9 @@ export type UpdateSettingsRequest = Partial<{
   defaultModel: SettingsDTO['defaultModel']
   useOneMillionContext: boolean
   useFastMode: boolean
+  autoMemoryEnabled: boolean
+  autoMemoryDirectory: string
+  autoDreamEnabled: boolean
 }>
 
 export type UpdateToolRequest = Partial<{
@@ -234,7 +300,13 @@ export type UpdateToolRequest = Partial<{
   description: string
 }>
 
-export type SSEEventName = 'assistant' | 'result' | 'tool_use_summary' | 'tool_progress' | 'error'
+export type SSEEventName =
+  | 'assistant'
+  | 'result'
+  | 'tool_use_summary'
+  | 'tool_progress'
+  | 'memory_recall'
+  | 'error'
 
 export type SSEAssistantPayload = {
   text: string
@@ -253,6 +325,18 @@ export type SSEToolUseSummaryPayload = {
 
 export type SSEToolProgressPayload = {
   tool_name: string
+  raw?: unknown
+}
+
+export type SSEMemoryRecallMemory = {
+  path: string
+  scope: string
+  content?: string
+}
+
+export type SSEMemoryRecallPayload = {
+  mode: 'select' | 'synthesize'
+  memories: SSEMemoryRecallMemory[]
   raw?: unknown
 }
 

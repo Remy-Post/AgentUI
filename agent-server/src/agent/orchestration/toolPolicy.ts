@@ -5,6 +5,7 @@ import {
   isGoogleWorkspaceToolId,
 } from '../../mcp/gwsTypes.ts'
 import { DB_MCP_TOOL_TO_TOGGLE, type DbToolId, isDbToolId } from '../../mcp/dbTypes.ts'
+import { NOTES_MCP_TOOL_TO_TOGGLE, type NotesToolId, isNotesToolId } from '../../mcp/notesTypes.ts'
 
 export type ToolRecord = {
   id: string
@@ -19,6 +20,7 @@ export type RuntimeToolPolicy = {
   enabledSdkTools: Set<string>
   enabledWorkspaceServices: Set<GoogleWorkspaceService>
   enabledDbToolIds: Set<DbToolId>
+  enabledNotesToolIds: Set<NotesToolId>
 }
 
 const AGENT_TOOL = 'Agent'
@@ -69,6 +71,10 @@ export const UI_TOOL_TO_SDK_TOOLS: Record<string, string[]> = {
   'web.search': ['WebSearch'],
   'git.commit': [],
   'sqlite.query': [],
+  'notes.read': [],
+  'notes.create': [],
+  'notes.update': [],
+  'notes.delete': [],
 }
 
 const KNOWN_SDK_TOOLS = [
@@ -142,6 +148,7 @@ export function expandToolNames(toolNames: Iterable<string> | undefined): string
   for (const name of toolNames) {
     if (isGoogleWorkspaceToolId(name)) continue
     if (isDbToolId(name)) continue
+    if (isNotesToolId(name)) continue
     const mapped = UI_TOOL_TO_SDK_TOOLS[name]
     if (mapped) expanded.push(...mapped)
     else if (name) expanded.push(name)
@@ -164,6 +171,11 @@ export function resolveToolPolicy(tools: ToolRecord[]): RuntimeToolPolicy {
       .filter((tool) => tool.enabled && isDbToolId(tool.id))
       .map((tool) => tool.id as DbToolId),
   )
+  const enabledNotesToolIds = new Set(
+    tools
+      .filter((tool) => tool.enabled && isNotesToolId(tool.id))
+      .map((tool) => tool.id as NotesToolId),
+  )
   const disabledSdkTools = new Set(
     tools.flatMap((tool) => (tool.enabled ? [] : expandToolNames([tool.id]))),
   )
@@ -182,6 +194,7 @@ export function resolveToolPolicy(tools: ToolRecord[]): RuntimeToolPolicy {
     enabledSdkTools,
     enabledWorkspaceServices,
     enabledDbToolIds,
+    enabledNotesToolIds,
   }
 }
 
@@ -213,6 +226,20 @@ export function filterEnabledDbToolIds(
   const seen = new Set<DbToolId>()
   for (const toolId of toolIds ?? []) {
     if (!isDbToolId(toolId) || !policy.enabledDbToolIds.has(toolId) || seen.has(toolId)) continue
+    seen.add(toolId)
+    out.push(toolId)
+  }
+  return out
+}
+
+export function filterEnabledNotesToolIds(
+  toolIds: Iterable<string> | undefined,
+  policy: RuntimeToolPolicy,
+): NotesToolId[] {
+  const out: NotesToolId[] = []
+  const seen = new Set<NotesToolId>()
+  for (const toolId of toolIds ?? []) {
+    if (!isNotesToolId(toolId) || !policy.enabledNotesToolIds.has(toolId) || seen.has(toolId)) continue
     seen.add(toolId)
     out.push(toolId)
   }
@@ -251,6 +278,12 @@ function dbToolIdFromMcpTool(toolName: string): DbToolId | null {
   return DB_MCP_TOOL_TO_TOGGLE[match[1]] ?? null
 }
 
+function notesToolIdFromMcpTool(toolName: string): NotesToolId | null {
+  const match = /^mcp__agentui_notes__([A-Za-z0-9_]+)$/.exec(toolName)
+  if (!match) return null
+  return NOTES_MCP_TOOL_TO_TOGGLE[match[1]] ?? null
+}
+
 function allow(toolUseID?: string): PermissionResult {
   return { behavior: 'allow', toolUseID }
 }
@@ -267,10 +300,6 @@ export function makeToolPermissionPolicy(policy: RuntimeToolPolicy): CanUseTool 
       return isSubagent
         ? deny('Nested subagent delegation is disabled by the global safety policy.', options.toolUseID)
         : allow(options.toolUseID)
-    }
-
-    if (!isSubagent) {
-      return deny('The parent orchestrator may only delegate through the Agent tool.', options.toolUseID)
     }
 
     const workspaceService = googleWorkspaceServiceFromMcpTool(toolName)
@@ -291,6 +320,13 @@ export function makeToolPermissionPolicy(policy: RuntimeToolPolicy): CanUseTool 
       return policy.enabledDbToolIds.has(dbToolId)
         ? allow(options.toolUseID)
         : deny(`Database tool ${dbToolId} is disabled.`, options.toolUseID)
+    }
+
+    const notesToolId = notesToolIdFromMcpTool(toolName)
+    if (notesToolId) {
+      return policy.enabledNotesToolIds.has(notesToolId)
+        ? allow(options.toolUseID)
+        : deny(`Notes tool ${notesToolId} is disabled.`, options.toolUseID)
     }
 
     if (!policy.enabledSdkTools.has(toolName)) {

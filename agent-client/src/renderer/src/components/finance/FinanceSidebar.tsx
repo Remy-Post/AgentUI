@@ -42,10 +42,9 @@ export default function FinanceSidebar({
             <div style={{ minWidth: 0 }}>
               <div className="conv-row">
                 <div className="conv-title">{c.title}</div>
-                <span className="chrome mono">{formatUsd(c.totalCostUsd ?? 0)}</span>
               </div>
               <div className="conv-meta">
-                <span className="chrome">{c.model}</span>
+                <span className="chrome mono">{formatUsd(c.totalCostUsd ?? 0)}</span>
               </div>
             </div>
           </li>

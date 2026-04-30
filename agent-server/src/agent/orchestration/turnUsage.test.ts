@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import mongoose from 'mongoose'
 import {
   buildContextWindowBulkOps,
+  buildTurnReconcileBulkOps,
   buildTurnUsageBulkOps,
   type TurnUsageEntry,
   type TurnUsageBulkOp,
@@ -169,4 +170,97 @@ test('negative tokens are clamped to zero in weighting', () => {
   assert.equal(ops.length, 2)
   assert.equal(ops[0].updateOne.update.$set.costUsd, 0)
   assert.ok(Math.abs(ops[1].updateOne.update.$set.costUsd - 0.5) < 1e-9)
+})
+
+test('reconcile produces $inc on the last entry equal to delta', () => {
+  const a = makeId()
+  const b = makeId()
+  const entries: TurnUsageEntry[] = [
+    { id: a, tokens: 0, inputTokens: 100, outputTokens: 5 },
+    { id: b, tokens: 0, inputTokens: 200, outputTokens: 10 },
+  ]
+  const ops = buildTurnReconcileBulkOps(entries, {
+    inputTokens: 1000,
+    outputTokens: 800,
+    cacheCreationInputTokens: 50,
+    cacheReadInputTokens: 25,
+  })
+  assert.equal(ops.length, 1)
+  assert.equal(ops[0].updateOne.filter._id, b)
+  assert.deepEqual(ops[0].updateOne.update.$inc, {
+    inputTokens: 700, // 1000 - (100 + 200)
+    outputTokens: 785, // 800 - (5 + 10)
+    cacheCreationInputTokens: 50, // 50 - 0
+    cacheReadInputTokens: 25, // 25 - 0
+  })
+})
+
+test('reconcile returns no ops when totals match persisted sums', () => {
+  const a = makeId()
+  const b = makeId()
+  const entries: TurnUsageEntry[] = [
+    { id: a, tokens: 0, inputTokens: 100, outputTokens: 50 },
+    { id: b, tokens: 0, inputTokens: 200, outputTokens: 100 },
+  ]
+  const ops = buildTurnReconcileBulkOps(entries, {
+    inputTokens: 300,
+    outputTokens: 150,
+  })
+  assert.deepEqual(ops, [])
+})
+
+test('reconcile returns no ops when entries are empty', () => {
+  const ops = buildTurnReconcileBulkOps([], {
+    inputTokens: 100,
+    outputTokens: 50,
+  })
+  assert.deepEqual(ops, [])
+})
+
+test('reconcile treats missing per-entry token fields as zero', () => {
+  const id = makeId()
+  const ops = buildTurnReconcileBulkOps([{ id, tokens: 0 }], {
+    inputTokens: 500,
+    outputTokens: 200,
+  })
+  assert.equal(ops.length, 1)
+  assert.deepEqual(ops[0].updateOne.update.$inc, {
+    inputTokens: 500,
+    outputTokens: 200,
+  })
+})
+
+test('reconcile passes through negative deltas (SDK total is authoritative)', () => {
+  const id = makeId()
+  // Per-entry persisted more than SDK total — could happen if SDK reports
+  // smaller totals than the sum of message-level usages. We trust the SDK.
+  const ops = buildTurnReconcileBulkOps([{ id, tokens: 0, outputTokens: 100 }], {
+    outputTokens: 60,
+  })
+  assert.equal(ops.length, 1)
+  assert.deepEqual(ops[0].updateOne.update.$inc, { outputTokens: -40 })
+})
+
+test('reconcile only includes fields that have a nonzero delta', () => {
+  const id = makeId()
+  const ops = buildTurnReconcileBulkOps(
+    [
+      {
+        id,
+        tokens: 0,
+        inputTokens: 100,
+        outputTokens: 50,
+        cacheCreationInputTokens: 10,
+        cacheReadInputTokens: 5,
+      },
+    ],
+    {
+      inputTokens: 100,
+      outputTokens: 75,
+      cacheCreationInputTokens: 10,
+      cacheReadInputTokens: 5,
+    },
+  )
+  assert.equal(ops.length, 1)
+  assert.deepEqual(ops[0].updateOne.update.$inc, { outputTokens: 25 })
 })

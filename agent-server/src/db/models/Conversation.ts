@@ -13,6 +13,12 @@ const ConversationSchema = new mongoose.Schema(
     effort: { type: String, enum: ['low', 'medium', 'high'], default: 'medium' },
     attachedSkillIds: { type: [String], default: [] },
     attachedSubagentIds: { type: [String], default: [] },
+    description: { type: String, default: '' },
+    color: {
+      type: String,
+      enum: ['slate', 'sky', 'emerald', 'amber', 'rose', 'violet', 'stone', null],
+      default: null,
+    },
   },
   { timestamps: true },
 )

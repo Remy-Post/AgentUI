@@ -1,8 +1,13 @@
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, PanelLeftClose } from 'lucide-react'
+import { Plus, Pencil, Trash2, PanelLeftClose } from 'lucide-react'
 import { apiFetch } from '../lib/api'
 import { useAppVersion } from '../hooks/useAppVersion'
+import { useKeybindShortcut } from '../hooks/useKeybinds'
 import { formatRelativeTime, formatUsd } from '../lib/format'
+import { CONVERSATION_COLORS } from '../lib/conversationColors'
+import EditConversationModal from './EditConversationModal'
+import DeleteConversationModal from './DeleteConversationModal'
 import JumpNav from './JumpNav'
 import StatusDot from './StatusDot'
 import type { ConversationDTO } from '@shared/types'
@@ -28,6 +33,7 @@ type Props = {
 
 function pageLabelFromMode(mode: SidebarMode): string {
   if (mode.startsWith('settings')) return 'settings'
+  if (mode === 'memory') return 'notes'
   return mode
 }
 
@@ -39,6 +45,7 @@ function ChatSidebarBody({
   onSelect: (id: string) => void
 }): React.JSX.Element {
   const queryClient = useQueryClient()
+  const newConversationShortcut = useKeybindShortcut('chat.newConversation')
   const conversationsQuery = useQuery({
     queryKey: ['conversations'],
     queryFn: () => apiFetch<ConversationDTO[]>('/api/sessions')
@@ -54,10 +61,9 @@ function ChatSidebarBody({
       onSelect(created._id)
     }
   })
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiFetch<void>(`/api/sessions/${id}`, { method: 'DELETE' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['conversations'] })
-  })
+
+  const [editing, setEditing] = useState<ConversationDTO | null>(null)
+  const [deleting, setDeleting] = useState<ConversationDTO | null>(null)
 
   return (
     <>
@@ -71,49 +77,81 @@ function ChatSidebarBody({
           <Plus size={14} />
           <span>New conversation</span>
         </span>
-        <span className="chrome">⌘N</span>
+        {newConversationShortcut && <span className="chrome">{newConversationShortcut}</span>}
       </button>
       <div className="recent-cap">
         <span className="cap">Recent</span>
       </div>
       <ul className="conv-list">
-        {conversationsQuery.data?.map((c) => (
-          <li
-            key={c._id}
-            className={`conv-item ${selectedId === c._id ? 'active' : ''}`}
-            onClick={() => onSelect(c._id)}
-          >
-            <div className="dot" />
-            <div style={{ minWidth: 0 }}>
-              <div className="conv-row">
-                <div className="conv-title">{c.title}</div>
-                <span className="chrome">{formatRelativeTime(c.updatedAt)}</span>
-              </div>
-              {typeof c.totalCostUsd === 'number' && c.totalCostUsd > 0 && (
-                <div className="conv-meta">
-                  <span className="chrome mono">{formatUsd(c.totalCostUsd)}</span>
-                </div>
-              )}
-            </div>
-            <button
-              type="button"
-              className="delete-btn"
-              title="Delete conversation"
-              onClick={(e) => {
-                e.stopPropagation()
-                if (confirm('Delete this conversation?')) deleteMutation.mutate(c._id)
-              }}
+        {conversationsQuery.data?.map((c) => {
+          const tint = c.color ? CONVERSATION_COLORS[c.color].side : null
+          const itemStyle = tint
+            ? ({ ['--row-tint' as string]: tint } as React.CSSProperties)
+            : undefined
+          return (
+            <li
+              key={c._id}
+              className={`conv-item ${selectedId === c._id ? 'active' : ''} ${
+                c.color ? 'tinted' : ''
+              }`}
+              style={itemStyle}
+              onClick={() => onSelect(c._id)}
             >
-              <Trash2 size={12} />
-            </button>
-          </li>
-        ))}
+              <div className="dot" />
+              <div className="conv-body">
+                <div className="conv-row">
+                  <div className="conv-title">{c.title}</div>
+                  <div className="conv-actions">
+                    <button
+                      type="button"
+                      className="row-icon-btn"
+                      title="Edit conversation"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setEditing(c)
+                      }}
+                    >
+                      <Pencil size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="row-icon-btn danger"
+                      title="Delete conversation"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleting(c)
+                      }}
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                  <span className="chrome conv-time">{formatRelativeTime(c.updatedAt)}</span>
+                </div>
+                {typeof c.totalCostUsd === 'number' && c.totalCostUsd > 0 && (
+                  <div className="conv-meta">
+                    <span className="chrome mono">{formatUsd(c.totalCostUsd)}</span>
+                  </div>
+                )}
+              </div>
+            </li>
+          )
+        })}
         {conversationsQuery.isError && (
           <li style={{ padding: '8px 12px', fontSize: 12, color: 'var(--color-error)' }}>
             Failed to load conversations.
           </li>
         )}
       </ul>
+      <EditConversationModal
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        conversation={editing}
+      />
+      <DeleteConversationModal
+        open={!!deleting}
+        onClose={() => setDeleting(null)}
+        conversation={deleting}
+      />
     </>
   )
 }

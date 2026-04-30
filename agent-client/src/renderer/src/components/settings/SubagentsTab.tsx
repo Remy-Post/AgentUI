@@ -52,6 +52,9 @@ export default function SubagentsTab(): React.JSX.Element {
             <div>
               <div className="name">{s.name}</div>
               <div className="desc">{s.description}</div>
+              <div className="memory-meta">
+                <span className="chip memory-tag">memory: {s.memory ?? 'none'}</span>
+              </div>
             </div>
             <div className="row-actions">
               <button

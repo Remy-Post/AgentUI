@@ -11,6 +11,7 @@ const SubagentSchema = new mongoose.Schema(
     tools: { type: [String] },
     disallowedTools: { type: [String] },
     mcpServices: { type: [String] },
+    memory: { type: String, enum: ['user', 'project', 'local', 'none'], default: 'local' },
     enabled: { type: Boolean, default: true },
   },
   { timestamps: true },
