@@ -128,7 +128,7 @@ export default function ChatHeader({
           title="Export conversation as JSON"
         >
           <Download size={12} />
-          <span>{exporting ? 'Exporting...' : 'Export JSON'}</span>
+          <span className="app-text">{exporting ? 'Exporting...' : 'Export JSON'}</span>
         </button>
         <button
           type="button"

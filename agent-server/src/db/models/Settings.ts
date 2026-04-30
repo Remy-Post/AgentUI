@@ -15,6 +15,8 @@ const SettingsSchema = new mongoose.Schema(
     autoMemoryEnabled: { type: Boolean, default: true },
     autoMemoryDirectory: { type: String, default: '' },
     autoDreamEnabled: { type: Boolean, default: false },
+    showAppText: { type: Boolean, default: true },
+    showDescriptions: { type: Boolean, default: true },
   },
   { timestamps: true },
 )

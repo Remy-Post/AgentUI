@@ -257,6 +257,10 @@ export type SettingsDTO = {
   autoMemoryDirectory: string
   /** Enable Claude Code background memory consolidation. */
   autoDreamEnabled: boolean
+  /** Show full application text instead of the icon-first compact display. */
+  showAppText: boolean
+  /** Show descriptive helper copy throughout the app. */
+  showDescriptions: boolean
 }
 
 export type ToolDTO = {
@@ -293,6 +297,8 @@ export type UpdateSettingsRequest = Partial<{
   autoMemoryEnabled: boolean
   autoMemoryDirectory: string
   autoDreamEnabled: boolean
+  showAppText: boolean
+  showDescriptions: boolean
 }>
 
 export type UpdateToolRequest = Partial<{

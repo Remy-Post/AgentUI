@@ -224,9 +224,12 @@ export default function Composer({
           {TOGGLES.map((mode) => {
             const checked = modes[mode.key]
             return (
-              <label
+              <button
+                type="button"
                 key={mode.key}
                 className={`list-row selectable modes-row ${checked ? 'on' : ''}`}
+                onClick={() => toggleMode(mode.key)}
+                aria-pressed={checked}
               >
                 <span className="glyph" aria-hidden="true">
                   {mode.icon}
@@ -235,15 +238,10 @@ export default function Composer({
                   <div className="name">{mode.label}</div>
                   <div className="desc">{mode.description}</div>
                 </div>
-                <span className="toggle">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleMode(mode.key)}
-                  />
-                  <span className="slider" />
+                <span className={`modes-row-toggle btn-secondary ${checked ? 'ok' : ''}`}>
+                  {checked ? 'On' : 'Off'}
                 </span>
-              </label>
+              </button>
             )
           })}
           <button

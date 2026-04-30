@@ -17,9 +17,7 @@ export type SidebarMode =
   | 'finance'
   | 'logs'
   | 'memory'
-  | 'settings-default'
-  | 'settings-skills'
-  | 'settings-subagents'
+  | 'settings'
 
 type Props = {
   mode?: SidebarMode
@@ -27,12 +25,12 @@ type Props = {
   onSelect?: (id: string) => void
   collapsed?: boolean
   onToggleCollapsed?: () => void
-  /** Optional override for the recent conversations body (used by finance mode). */
+  /** Optional override for the sidebar body. */
   bodySlot?: React.ReactNode
 }
 
 function pageLabelFromMode(mode: SidebarMode): string {
-  if (mode.startsWith('settings')) return 'settings'
+  if (mode === 'settings') return 'settings'
   if (mode === 'memory') return 'notes'
   return mode
 }
@@ -166,7 +164,7 @@ export default function Sidebar({
   const version = useAppVersion()
   const footText = pageLabelFromMode(mode)
 
-  const showRecentList = mode === 'chat' || mode === 'settings-default'
+  const showRecentList = mode === 'chat'
 
   return (
     <aside className="sidebar">

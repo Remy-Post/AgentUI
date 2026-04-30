@@ -18,6 +18,7 @@ import {
 import { useViewStore } from './store/view'
 import { useConfig } from './hooks/useConfig'
 import { useKeybinds } from './hooks/useKeybinds'
+import { useSettings } from './hooks/useSettings'
 import type { ConversationDTO } from '@shared/types'
 
 function App(): React.JSX.Element {
@@ -31,6 +32,7 @@ function App(): React.JSX.Element {
   const [serverError, setServerError] = useState(false)
   const inspectorConfig = useConfig<boolean>('inspector.open', true)
   const { keybinds } = useKeybinds()
+  const { data: appSettings } = useSettings()
   const queryClient = useQueryClient()
 
   const conversationsQuery = useQuery({
@@ -136,6 +138,16 @@ function App(): React.JSX.Element {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [keybinds, runKeybindAction])
 
+  useEffect(() => {
+    const textMinimal = appSettings?.showAppText === false
+    const descriptionsHidden = appSettings?.showDescriptions === false
+    document.body.classList.toggle('text-minimal', textMinimal)
+    document.body.classList.toggle('descriptions-hidden', descriptionsHidden)
+    return () => {
+      document.body.classList.remove('text-minimal', 'descriptions-hidden')
+    }
+  }, [appSettings?.showAppText, appSettings?.showDescriptions])
+
   if (isLoading) {
     return (
       <div
@@ -158,8 +170,16 @@ function App(): React.JSX.Element {
     )
   }
 
+  const appRootClass = [
+    'app-root',
+    appSettings?.showAppText === false ? 'text-minimal' : '',
+    appSettings?.showDescriptions === false ? 'descriptions-hidden' : ''
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
-    <div className="app-root" style={rootStyle}>
+    <div className={appRootClass} style={rootStyle}>
       {view === 'chat' && (
         <ChatLayout
           selectedConversationId={conversationId}

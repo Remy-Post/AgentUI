@@ -1,4 +1,6 @@
-import { useViewStore, type SettingsTab } from '../../store/view'
+import { PanelRight } from 'lucide-react'
+import { useViewStore } from '../../store/view'
+import AppWideTab from './AppWideTab'
 import ApiKeyTab from './ApiKeyTab'
 import ModelTab from './ModelTab'
 import BudgetTab from './BudgetTab'
@@ -9,61 +11,40 @@ import ToolsTab from './ToolsTab'
 import ConversationsTab from './ConversationsTab'
 import KeybindsTab from './KeybindsTab'
 
-const LEFT_TABS: Array<{ id: SettingsTab; label: string }> = [
-  { id: 'model', label: 'Model' },
-  { id: 'budget', label: 'Budget' },
-  { id: 'memory', label: 'SDK Memory' },
-  { id: 'skills', label: 'Skills' },
-  { id: 'subagents', label: 'Subagents' }
-]
-
-const RIGHT_TABS: Array<{ id: SettingsTab; label: string }> = [
-  { id: 'keybinds', label: 'Keybinds' },
-  { id: 'tools', label: 'Tools' },
-  { id: 'api', label: 'Keys' },
-  { id: 'conversations', label: 'All conversations' }
-]
-
 type Props = {
   onSelectConversation: (id: string) => void
+  drawerOpen: boolean
+  onToggleDrawer: () => void
 }
 
-export default function SettingsView({ onSelectConversation }: Props): React.JSX.Element {
+export default function SettingsView({
+  onSelectConversation,
+  drawerOpen,
+  onToggleDrawer
+}: Props): React.JSX.Element {
   const settingsTab = useViewStore((s) => s.settingsTab)
-  const setSettingsTab = useViewStore((s) => s.setSettingsTab)
+  const hasDrawer = settingsTab === 'skills' || settingsTab === 'subagents'
+  const drawerTitle = drawerOpen ? 'Hide entity drawer' : 'Show entity drawer'
 
   return (
     <section className="settings-section">
       <header className="settings-header">
         <div className="settings-title">Settings</div>
+        {hasDrawer && (
+          <button
+            type="button"
+            className="inspector-toggle"
+            aria-pressed={drawerOpen}
+            aria-label={drawerTitle}
+            title={drawerTitle}
+            onClick={onToggleDrawer}
+          >
+            <PanelRight />
+          </button>
+        )}
       </header>
-      <nav className="settings-tabs">
-        <div className="settings-tabs-group">
-          {LEFT_TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={`settings-tab ${settingsTab === t.id ? 'active' : ''}`}
-              onClick={() => setSettingsTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <div className="settings-tabs-group">
-          {RIGHT_TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={`settings-tab ${settingsTab === t.id ? 'active' : ''}`}
-              onClick={() => setSettingsTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </nav>
       <div className="settings-body">
+        {settingsTab === 'app-wide' && <AppWideTab />}
         {settingsTab === 'api' && <ApiKeyTab />}
         {settingsTab === 'model' && <ModelTab />}
         {settingsTab === 'budget' && <BudgetTab />}

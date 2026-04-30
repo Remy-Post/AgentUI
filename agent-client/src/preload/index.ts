@@ -1,19 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-
-type LogLevel = 'debug' | 'info' | 'warning' | 'error'
-type ClientLogEntryDTO = {
-  id: string
-  source: 'renderer' | 'main'
-  level: LogLevel
-  message: string
-  timestamp: string
-  meta?: Record<string, unknown>
-}
-type ClientLogsDTO = {
-  renderer: ClientLogEntryDTO[]
-  main: ClientLogEntryDTO[]
-}
+import type { ClientLogsDTO } from '../main/logs'
 
 const api = {
   getServerPort: (): Promise<number | null> => ipcRenderer.invoke('server:getPort'),

@@ -5,14 +5,12 @@ import {
   FileCode,
   Folder,
   GitBranch,
-  KeyRound,
+  Lock,
   Loader2,
-  RefreshCw,
-  Settings
+  RefreshCw
 } from 'lucide-react'
 import Modal from '../Modal'
 import { apiFetch } from '../../lib/api'
-import { useViewStore } from '../../store/view'
 import type {
   GitHubAuthDTO,
   GitHubIngestDTO,
@@ -75,8 +73,6 @@ export default function GitHubContextModal({
   onClose,
   onIngested
 }: Props): React.JSX.Element {
-  const setView = useViewStore((s) => s.setView)
-  const setSettingsTab = useViewStore((s) => s.setSettingsTab)
   const [repoUrl, setRepoUrl] = useState('')
   const [ref, setRef] = useState('')
   const [auth, setAuth] = useState<GitHubAuthDTO | null>(null)
@@ -111,12 +107,6 @@ export default function GitHubContextModal({
   const rootSelectionComplete =
     rootSelectableEntries.length > 0 &&
     rootSelectableEntries.every((entry) => selected.has(entry.path))
-
-  const openKeys = (): void => {
-    setSettingsTab('api')
-    setView('settings')
-    onClose()
-  }
 
   const loadPreview = async (): Promise<void> => {
     if (!conversationId) return
@@ -254,22 +244,18 @@ export default function GitHubContextModal({
       <div className="github-context-flow">
         <div className="github-auth-row">
           <div className="glyph">
-            <KeyRound size={14} />
+            <Lock size={14} />
           </div>
           <div className="github-auth-copy">
             <div className="name">Private repository access</div>
             <div className="desc">
               {loadingAuth
-                ? 'Checking token...'
+                ? 'Checking private access...'
                 : auth?.hasToken
-                  ? 'GitHub token configured in Settings > Keys.'
-                  : 'Public repositories work without a token. Add private access in Settings > Keys.'}
+                  ? 'Private repository access is configured.'
+                  : 'Public repositories can be previewed without private access.'}
             </div>
           </div>
-          <button type="button" className="btn-secondary github-auth-settings" onClick={openKeys}>
-            <Settings size={12} />
-            Keys
-          </button>
         </div>
 
         <div className="github-input-grid">

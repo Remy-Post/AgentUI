@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Keyboard, Pencil, Plus, Trash2 } from 'lucide-react'
 import Modal from '../Modal'
 import { useKeybinds } from '../../hooks/useKeybinds'
+import { useSettings } from '../../hooks/useSettings'
 import {
   KEYBIND_ACTIONS,
   KEYBIND_ACTION_BY_ID,
@@ -193,7 +194,8 @@ function KeybindEditor({
 export default function KeybindsTab(): React.JSX.Element {
   const { keybinds, isReady, createKeybind, setKeybinds, updateKeybind, removeKeybind } =
     useKeybinds()
-  const [showDescriptions, setShowDescriptions] = useState(false)
+  const { data: settings } = useSettings()
+  const showDescriptions = settings?.showDescriptions ?? true
   const [editing, setEditing] = useState<KeybindRecord | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [inlineError, setInlineError] = useState('')
@@ -255,17 +257,6 @@ export default function KeybindsTab(): React.JSX.Element {
           </div>
         </div>
         <div className="row-actions">
-          <label className="keybind-desc-toggle">
-            <span className="chrome">Descriptions</span>
-            <span className="toggle">
-              <input
-                type="checkbox"
-                checked={showDescriptions}
-                onChange={(event) => setShowDescriptions(event.target.checked)}
-              />
-              <span className="slider" />
-            </span>
-          </label>
           <button type="button" className="btn-primary" onClick={openCreate}>
             <Plus size={12} /> Add keybind
           </button>

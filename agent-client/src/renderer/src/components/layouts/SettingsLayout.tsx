@@ -1,5 +1,6 @@
 import SettingsView from '../settings/SettingsView'
 import SettingsSidebar from '../settings/SettingsSidebar'
+import EntityList from '../settings/EntityList'
 import { useViewStore } from '../../store/view'
 import { useConfig } from '../../hooks/useConfig'
 
@@ -9,29 +10,46 @@ type Props = {
 }
 
 export default function SettingsLayout({
-  selectedConversationId,
   onSelectConversation
 }: Props): React.JSX.Element {
-  // settingsTab triggers re-render of sidebar when tab switches.
-  useViewStore((s) => s.settingsTab)
+  const settingsTab = useViewStore((s) => s.settingsTab)
   const { value: collapsed, setValue: setCollapsed } = useConfig<boolean>(
     'sidebar.collapsed',
     false
   )
+  const { value: drawerOpen, setValue: setDrawerOpen } = useConfig<boolean>(
+    'settings.entityDrawer.open',
+    true
+  )
+  const { value: drawerWidth } = useConfig<number>('settings.entityDrawer.width', 320)
+  const hasDrawer = settingsTab === 'skills' || settingsTab === 'subagents'
 
-  const frameClass = ['frame', 'settings', 'no-rail', collapsed ? 'side-collapsed' : '']
+  const frameClass = [
+    'frame',
+    'settings',
+    hasDrawer ? '' : 'no-rail',
+    hasDrawer && !drawerOpen ? 'rail-closed' : '',
+    collapsed ? 'side-collapsed' : ''
+  ]
     .filter(Boolean)
     .join(' ')
 
   return (
-    <div className={frameClass}>
+    <div className={frameClass} style={{ ['--rail-w' as string]: `${drawerWidth}px` }}>
       <SettingsSidebar
-        selectedConversationId={selectedConversationId}
-        onSelectConversation={onSelectConversation}
         collapsed={collapsed}
         onToggleCollapsed={() => setCollapsed(!collapsed)}
       />
-      <SettingsView onSelectConversation={onSelectConversation} />
+      <SettingsView
+        onSelectConversation={onSelectConversation}
+        drawerOpen={drawerOpen}
+        onToggleDrawer={() => setDrawerOpen(!drawerOpen)}
+      />
+      {hasDrawer && (
+        <aside className="rail settings-entity-rail">
+          <EntityList kind={settingsTab === 'skills' ? 'skill' : 'subagent'} />
+        </aside>
+      )}
     </div>
   )
 }

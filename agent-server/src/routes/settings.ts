@@ -17,6 +17,8 @@ type SettingsLean = {
   autoMemoryEnabled?: boolean
   autoMemoryDirectory?: string
   autoDreamEnabled?: boolean
+  showAppText?: boolean
+  showDescriptions?: boolean
 }
 
 function toDto(doc: SettingsLean | null | undefined): SettingsDTO {
@@ -29,6 +31,8 @@ function toDto(doc: SettingsLean | null | undefined): SettingsDTO {
     autoMemoryEnabled: doc?.autoMemoryEnabled !== false,
     autoMemoryDirectory: typeof doc?.autoMemoryDirectory === 'string' ? doc.autoMemoryDirectory : '',
     autoDreamEnabled: Boolean(doc?.autoDreamEnabled),
+    showAppText: doc?.showAppText !== false,
+    showDescriptions: doc?.showDescriptions !== false,
   }
 }
 
@@ -64,6 +68,12 @@ router.put('/', async (req, res) => {
   }
   if (typeof body.autoDreamEnabled === 'boolean') {
     update.autoDreamEnabled = body.autoDreamEnabled
+  }
+  if (typeof body.showAppText === 'boolean') {
+    update.showAppText = body.showAppText
+  }
+  if (typeof body.showDescriptions === 'boolean') {
+    update.showDescriptions = body.showDescriptions
   }
   if (Object.keys(update).length === 0) return res.status(400).json({ error: 'no_op' })
 

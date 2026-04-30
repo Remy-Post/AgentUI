@@ -74,7 +74,3 @@ export function stopServerProcess(): void {
     }
   }, 2000)
 }
-
-export function getServerPort(): number | null {
-  return cachedPort
-}

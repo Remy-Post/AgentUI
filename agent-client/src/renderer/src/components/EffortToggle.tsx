@@ -53,7 +53,7 @@ export default function EffortToggle({ conversation }: Props): React.JSX.Element
       title={`Effort: ${current} (click to change)`}
       aria-label={`Effort level ${level} of 3 (${current}). Click to change.`}
     >
-      Effort
+      <span className="app-text">Effort</span>
       <span className="effort-bars" aria-hidden="true">
         <span className={`effort-bar${level >= 1 ? ' on' : ''}`} />
         <span className={`effort-bar${level >= 2 ? ' on' : ''}`} />
