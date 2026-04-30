@@ -6,7 +6,7 @@ import ModelsPopover, { ALL_MODEL_IDS } from './ModelsPopover'
 import WindowToggle from './WindowToggle'
 import { useFinance, type FinanceWindow } from '../../hooks/useFinance'
 import { apiFetch, getServerOrigin } from '../../lib/api'
-import { formatUsd } from '../../lib/format'
+import { formatModelFamily, formatUsd } from '../../lib/format'
 import type { ConversationDTO, UsageBucket } from '@shared/types'
 
 type CardGranularity = 'day' | 'hour'
@@ -280,7 +280,7 @@ export default function FinanceView({
                       className="model-dot"
                       style={{ background: MODEL_DOT_COLORS[row.model] ?? 'var(--color-line-2)' }}
                     />
-                    <span>{row.model}</span>
+                    <span>{formatModelFamily(row.model)}</span>
                   </div>
                   <div className="num">{row.inTokens.toLocaleString()}</div>
                   <div className="num">{row.outTokens.toLocaleString()}</div>
@@ -313,7 +313,7 @@ export default function FinanceView({
                     {run.title}
                   </div>
                   <div className="num">{run.tokens.toLocaleString()}</div>
-                  <div className="num">{run.model}</div>
+                  <div className="num">{formatModelFamily(run.model)}</div>
                   <div className="num">{formatUsd(run.spendUsd)}</div>
                 </div>
               ))}

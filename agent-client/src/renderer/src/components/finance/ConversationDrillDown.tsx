@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { apiFetch } from '../../lib/api'
-import { formatUsd } from '../../lib/format'
+import { formatModelFamily, formatUsd } from '../../lib/format'
 import type { ConversationDTO, MessageDTO } from '@shared/types'
 
 type Props = {
@@ -93,7 +93,7 @@ export default function ConversationDrillDown({
         <div className="pane-head-text">
           <div className="pane-title">{conversation?.title ?? 'Conversation'}</div>
           <div className="pane-sub">
-            {conversation?.model ?? 'unknown'} · {assistantMessages.length} assistant turns
+            {formatModelFamily(conversation?.model ?? 'unknown')} · {assistantMessages.length} assistant turns
           </div>
         </div>
       </div>
@@ -146,7 +146,7 @@ export default function ConversationDrillDown({
               <div className="num">
                 {tokens === null ? 'not recorded' : tokens.toLocaleString()}
               </div>
-              <div className="num">{model}</div>
+              <div className="num">{formatModelFamily(model)}</div>
               <div className="num">
                 {typeof row.costUsd === 'number' ? formatUsd(row.costUsd) : 'not recorded'}
               </div>

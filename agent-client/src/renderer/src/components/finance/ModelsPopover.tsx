@@ -3,9 +3,9 @@ import { useEffect, useRef, useState } from 'react'
 type ModelOption = { id: string; short: string; label: string }
 
 const OPTIONS: ModelOption[] = [
-  { id: 'claude-opus-4-7', short: 'opus 4.7', label: 'Opus 4.7' },
-  { id: 'claude-sonnet-4-6', short: 'sonnet 4.6', label: 'Sonnet 4.6' },
-  { id: 'claude-haiku-4-5-20251001', short: 'haiku 4.5', label: 'Haiku 4.5' }
+  { id: 'claude-opus-4-7', short: 'opus', label: 'Opus' },
+  { id: 'claude-sonnet-4-6', short: 'sonnet', label: 'Sonnet' },
+  { id: 'claude-haiku-4-5-20251001', short: 'haiku', label: 'Haiku' }
 ]
 
 export const ALL_MODEL_IDS: string[] = OPTIONS.map((o) => o.id)
@@ -55,7 +55,7 @@ export default function ModelsPopover({
     selected.length === OPTIONS.length
       ? 'all models'
       : OPTIONS.filter((o) => selected.includes(o.id))
-          .map((o) => o.short)
+          .map((o) => o.label)
           .join(', ')
 
   return (

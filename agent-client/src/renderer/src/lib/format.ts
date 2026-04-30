@@ -44,3 +44,11 @@ export function truncate(s: string, n: number): string {
   if (s.length <= n) return s
   return `${s.slice(0, n - 1).trimEnd()}…`
 }
+
+export function formatModelFamily(model: string): string {
+  const low = model.toLowerCase()
+  if (low.includes('opus')) return 'Opus'
+  if (low.includes('sonnet')) return 'Sonnet'
+  if (low.includes('haiku')) return 'Haiku'
+  return model
+}
