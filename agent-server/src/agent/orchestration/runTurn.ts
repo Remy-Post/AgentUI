@@ -8,6 +8,7 @@ import { syncFromDb } from '../scaffold.ts'
 import { Message } from '../../db/models/Message.ts'
 import { Conversation } from '../../db/models/Conversation.ts'
 import type { SSEHandle } from '../sse.ts'
+import type { TurnMode } from '../../shared/types.ts'
 import type { RuntimeConversation } from './options.ts'
 import { buildQueryOptions } from './options.ts'
 import { extractAssistantText, extractSessionId, normalizeSdkMessage } from './events.ts'
@@ -23,6 +24,7 @@ export type RunConversationTurnInput = {
   conversation: RuntimeConversation
   sse: SSEHandle
   isClosed?: () => boolean
+  modes?: TurnMode[]
 }
 
 export type RunConversationTurnResult = {
@@ -91,9 +93,10 @@ export async function runConversationTurn({
   conversation,
   sse,
   isClosed,
+  modes,
 }: RunConversationTurnInput): Promise<RunConversationTurnResult> {
   await syncFromDb()
-  const options = await buildQueryOptions(conversation, content)
+  const options = await buildQueryOptions(conversation, content, modes ?? [])
   const stream = query({ prompt: content, options })
   const turnEntries: TurnUsageEntry[] = []
   let totalCostUsd: number | undefined

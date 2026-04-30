@@ -140,8 +140,17 @@ export type SSEToolProgressPayload = {
   raw?: unknown
 }
 
+export type TurnMode = 'plan' | 'research' | 'debug'
+
 export type SendMessageRequest = {
   content: string
+  modes?: TurnMode[]
+}
+
+export type CompressResponse = {
+  status: 'ok'
+  summaryMessageId: string
+  archivedMessageCount: number
 }
 
 export type UsageWindow = '24h' | '7d' | '30d' | 'all'

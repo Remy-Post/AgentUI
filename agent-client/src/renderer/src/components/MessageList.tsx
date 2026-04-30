@@ -27,9 +27,26 @@ function renderContent(message: MessageDTO): React.ReactNode {
     return <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
   }
   if (message.role === 'system' && message.content && typeof message.content === 'object') {
-    const obj = message.content as { kind?: string; message?: string }
+    const obj = message.content as {
+      kind?: string
+      message?: string
+      summary?: string
+      archivedCount?: number
+    }
     if (obj.kind === 'error' && typeof obj.message === 'string') {
       return <p>{obj.message}</p>
+    }
+    if (obj.kind === 'compaction' && typeof obj.summary === 'string') {
+      const count = typeof obj.archivedCount === 'number' ? obj.archivedCount : null
+      return (
+        <>
+          <p className="chrome" style={{ marginBottom: 8 }}>
+            Conversation compressed
+            {count !== null ? ` · ${count} prior message${count === 1 ? '' : 's'} summarized` : ''}.
+          </p>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{obj.summary}</ReactMarkdown>
+        </>
+      )
     }
   }
   return (

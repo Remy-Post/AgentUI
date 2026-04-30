@@ -6,7 +6,7 @@ import ChatHeader from './ChatHeader'
 import { apiFetch } from '../lib/api'
 import { streamPost } from '../hooks/useSSE'
 import { useStreamingStore } from '../store/streaming'
-import type { ConversationDTO, MessageDTO } from '@shared/types'
+import type { CompressResponse, ConversationDTO, MessageDTO, TurnMode } from '@shared/types'
 
 type Props = {
   conversationId: string | null
@@ -57,13 +57,13 @@ export default function ChatView({
     )
   }
 
-  const handleSubmit = async (content: string): Promise<void> => {
+  const handleSubmit = async (content: string, modes: TurnMode[]): Promise<void> => {
     streaming.begin(conversationId)
     abortRef.current = new AbortController()
     try {
       await streamPost(
         `/api/sessions/${conversationId}/messages`,
-        { content },
+        { content, modes: modes.length > 0 ? modes : undefined },
         {
           signal: abortRef.current.signal,
           onEvent: (event, data) => {
@@ -115,6 +115,14 @@ export default function ChatView({
         conversationId={conversationId}
         disabled={streaming.active && streaming.conversationId === conversationId}
         onSubmit={handleSubmit}
+        onCompress={async () => {
+          await apiFetch<CompressResponse>(`/api/sessions/${conversationId}/compress`, {
+            method: 'POST'
+          })
+          queryClient.invalidateQueries({ queryKey: ['messages', conversationId] })
+          queryClient.invalidateQueries({ queryKey: ['conversations'] })
+          queryClient.invalidateQueries({ queryKey: ['context', conversationId] })
+        }}
       />
     </section>
   )

@@ -11,8 +11,14 @@ import { Skill } from '../../db/models/Skill.ts'
 import { Subagent } from '../../db/models/Subagent.ts'
 import { Tool } from '../../db/models/Tool.ts'
 import { uniqueGoogleWorkspaceServices } from '../../mcp/gwsTypes.ts'
+import type { TurnMode } from '../../shared/types.ts'
 import { ensureToolRegistrySeeded } from './defaultTools.ts'
-import { buildAgentDefinitions, ORCHESTRATOR_AGENT_NAME, type RuntimeSubagentRecord } from './agents.ts'
+import {
+  PLAN_MODE_INSTRUCTIONS,
+  buildAgentDefinitions,
+  ORCHESTRATOR_AGENT_NAME,
+  type RuntimeSubagentRecord,
+} from './agents.ts'
 import { ensureTurnSubagents } from './dynamicSubagents.ts'
 import { makeToolPermissionPolicy, resolveToolPolicy, type ToolRecord } from './toolPolicy.ts'
 
@@ -103,21 +109,24 @@ export async function loadRuntimeConfig(conversation: RuntimeConversation): Prom
 export function buildQueryOptionsFromRuntime(
   conversation: RuntimeConversation,
   runtime: RuntimeConfig,
+  modes: TurnMode[] = [],
 ): Options {
   const policy = resolveToolPolicy(runtime.tools)
   const skillNames = runtime.skills.map((skill) => skill.name).filter(Boolean)
   const oneMActive = runtime.useOneMillionContext && modelSupportsOneMillionContext(conversation.model)
   const fastModeActive = runtime.useFastMode && modelSupportsFastMode(conversation.model)
+  const planActive = modes.includes('plan')
 
   return {
     model: conversation.model,
     agent: ORCHESTRATOR_AGENT_NAME,
-    agents: buildAgentDefinitions(policy, runtime.subagents, conversation.effort),
+    agents: buildAgentDefinitions(policy, runtime.subagents, conversation.effort, modes),
     tools: policy.availableTools,
     allowedTools: policy.allowedTools,
     disallowedTools: policy.disallowedTools,
     canUseTool: makeToolPermissionPolicy(policy),
-    permissionMode: 'dontAsk',
+    permissionMode: planActive ? 'plan' : 'dontAsk',
+    planModeInstructions: planActive ? PLAN_MODE_INSTRUCTIONS : undefined,
     settingSources: ['project'],
     betas: oneMActive ? [ONE_MILLION_CONTEXT_BETA] : undefined,
     settings: fastModeActive ? { fastMode: true } : undefined,
@@ -136,9 +145,13 @@ export function buildQueryOptionsFromRuntime(
   }
 }
 
-export async function buildQueryOptions(conversation: RuntimeConversation, content: string): Promise<Options> {
+export async function buildQueryOptions(
+  conversation: RuntimeConversation,
+  content: string,
+  modes: TurnMode[] = [],
+): Promise<Options> {
   const runtime = await loadRuntimeConfig(conversation)
   const policy = resolveToolPolicy(runtime.tools)
   const subagents = await ensureTurnSubagents(content, conversation, runtime.subagents, policy)
-  return buildQueryOptionsFromRuntime(conversation, { ...runtime, subagents })
+  return buildQueryOptionsFromRuntime(conversation, { ...runtime, subagents }, modes)
 }

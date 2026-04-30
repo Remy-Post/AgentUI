@@ -4,9 +4,10 @@ import { Conversation } from '../db/models/Conversation.ts'
 import { Message } from '../db/models/Message.ts'
 import { Tool } from '../db/models/Tool.ts'
 import { Settings } from '../db/models/Settings.ts'
-import { dropSession } from '../agent/session.ts'
+import { dropSession, isStreaming } from '../agent/session.ts'
+import { compressConversation } from '../agent/orchestration/compress.ts'
 import { normalizeModelClass, resolveContextWindow, resolveLatestModelId } from '../../util/vars.ts'
-import type { ContextDTO } from '../shared/types.ts'
+import type { CompressResponse, ContextDTO } from '../shared/types.ts'
 
 const router = Router()
 
@@ -62,6 +63,28 @@ router.patch('/:id', async (req, res) => {
   const doc = await Conversation.findByIdAndUpdate(req.params.id, { $set: update }, { new: true }).lean()
   if (!doc) return res.status(404).json({ error: 'not_found' })
   return res.json(doc)
+})
+
+router.post('/:id/compress', async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'invalid_id' })
+  const conversation = await Conversation.findById(req.params.id).lean<{ model?: string } | null>()
+  if (!conversation) return res.status(404).json({ error: 'not_found' })
+  if (isStreaming(req.params.id)) return res.status(409).json({ error: 'stream_in_progress' })
+  const model = typeof conversation.model === 'string' ? conversation.model : ''
+  if (!model) return res.status(400).json({ error: 'no_model' })
+
+  try {
+    const result = await compressConversation({ conversationId: req.params.id, conversationModel: model })
+    const dto: CompressResponse = {
+      status: 'ok',
+      summaryMessageId: result.summaryMessageId,
+      archivedMessageCount: result.archivedMessageCount,
+    }
+    return res.json(dto)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'compress_failed'
+    return res.status(500).json({ error: message })
+  }
 })
 
 router.delete('/:id', async (req, res) => {

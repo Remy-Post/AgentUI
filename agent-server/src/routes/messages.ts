@@ -5,7 +5,19 @@ import { Message } from '../db/models/Message.ts'
 import { isStreaming, markBusy, dropSession } from '../agent/session.ts'
 import { openSSE } from '../agent/sse.ts'
 import { runConversationTurn } from '../agent/orchestration/runTurn.ts'
-import type { SendMessageRequest } from '../shared/types.ts'
+import type { SendMessageRequest, TurnMode } from '../shared/types.ts'
+
+const TURN_MODE_VALUES: TurnMode[] = ['plan', 'research', 'debug']
+
+function parseModes(value: unknown): TurnMode[] {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<TurnMode>()
+  for (const entry of value) {
+    if (typeof entry !== 'string') continue
+    if ((TURN_MODE_VALUES as string[]).includes(entry)) seen.add(entry as TurnMode)
+  }
+  return [...seen]
+}
 
 const router = Router({ mergeParams: true })
 
@@ -26,6 +38,7 @@ router.post<'/', { id: string }>('/', async (req, res) => {
   const body = (req.body ?? {}) as SendMessageRequest
   const content = (body.content ?? '').toString()
   if (!content.trim()) return res.status(400).json({ error: 'empty_content' })
+  const modes = parseModes(body.modes)
 
   await Message.create({ conversationId, role: 'user', content })
   await Conversation.updateOne({ _id: conversationId }, { $set: { updatedAt: new Date() } })
@@ -41,6 +54,7 @@ router.post<'/', { id: string }>('/', async (req, res) => {
       conversation,
       sse,
       isClosed: () => res.writableEnded,
+      modes,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

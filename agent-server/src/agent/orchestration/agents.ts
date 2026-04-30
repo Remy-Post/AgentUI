@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import type { AgentDefinition, PermissionMode } from '@anthropic-ai/claude-agent-sdk'
 import type { GoogleWorkspaceService } from '../../mcp/gwsTypes.ts'
 import type { DbToolId } from '../../mcp/dbTypes.ts'
+import type { TurnMode } from '../../shared/types.ts'
 import type { RuntimeToolPolicy } from './toolPolicy.ts'
 import {
   AGENT_TOOL_NAME,
@@ -13,6 +14,44 @@ import {
 } from './toolPolicy.ts'
 
 export const ORCHESTRATOR_AGENT_NAME = 'agentui_orchestrator'
+
+export const PLAN_MODE_INSTRUCTIONS = [
+  'Run the planning pipeline below before producing the final plan. Use the Agent tool to spawn scoped subagents in parallel wherever possible.',
+  '',
+  '1. ASK: If any aspect of the request is ambiguous, missing required context, or unsafe, ask one concise clarification question and stop. Otherwise skip this step.',
+  '2. RESEARCH: Spawn multiple research subagents in parallel, each scoped to one source (e.g. one per relevant area of the codebase, one per external doc set, one for the open web). Each subagent returns concise findings, citations, and gaps.',
+  '3. ANALYZE: Read the research returns. If the picture is incomplete or contradictory, spawn additional research subagents to close specific gaps. Loop ANALYZE -> RESEARCH until you have enough information to commit to a plan.',
+  '4. CREATE PLAN: Draft a concrete implementation plan: scope, files to change, sequence, risks, verification.',
+  '5. REVIEW PLAN: Spawn a dedicated review subagent. Give it the original request and the plan. It returns: PASS, or a list of concrete issues. If it returns issues, revise the plan and re-review. Loop until the review subagent returns PASS.',
+  '6. PRESENT: Call ExitPlanMode with the approved plan as the final answer.',
+  '',
+  'Hard rules:',
+  '- Spawn many subagents rather than one broad worker. One subagent = one source or one question.',
+  '- Do not edit files or run side-effecting tools. Investigation only.',
+  '- Do not skip the REVIEW PLAN loop. The plan is not final until a review subagent passes it.',
+].join('\n')
+
+const RESEARCH_MODE_ADDENDUM = [
+  '',
+  '== RESEARCH MODE ==',
+  'The user wants a deep investigation of the request, not a one-shot answer.',
+  'Spawn multiple research subagents in parallel: one per source angle (codebase area, external docs, web). Use WebSearch and WebFetch heavily for any external angle.',
+  'After subagents return, aggregate into a structured in-depth summary with these sections: Findings, Sources, Contradictions / Open Questions, Recommendations.',
+  'Do not skip web sources unless the user explicitly says the work is purely internal.',
+].join('\n')
+
+const DEBUG_MODE_ADDENDUM = [
+  '',
+  '== DEBUG MODE ==',
+  'Surface your reasoning for the user. Before the final answer, include a short trace covering: which subagents you spawned and why, what each returned, and which path you chose. Keep the trace tight; it should aid debugging, not bury the answer.',
+].join('\n')
+
+export function composeOrchestratorPrompt(modes: TurnMode[] = []): string {
+  let prompt = ORCHESTRATOR_PROMPT
+  if (modes.includes('research')) prompt += RESEARCH_MODE_ADDENDUM
+  if (modes.includes('debug')) prompt += DEBUG_MODE_ADDENDUM
+  return prompt
+}
 
 export type RuntimeSubagentRecord = {
   _id?: unknown
@@ -273,13 +312,14 @@ export function buildAgentDefinitions(
   policy: RuntimeToolPolicy,
   mongoSubagents: RuntimeSubagentRecord[],
   conversationEffort?: 'low' | 'medium' | 'high',
+  modes: TurnMode[] = [],
 ): Record<string, AgentDefinition> {
   const effort = mapConversationEffort(conversationEffort)
   const agents: Record<string, AgentDefinition> = {
     [ORCHESTRATOR_AGENT_NAME]: {
       description: 'Minimal parent orchestrator that delegates tool-heavy work to scoped subagents.',
-      prompt: ORCHESTRATOR_PROMPT,
-      permissionMode: 'dontAsk',
+      prompt: composeOrchestratorPrompt(modes),
+      permissionMode: modes.includes('plan') ? 'plan' : 'dontAsk',
       effort,
       tools: [AGENT_TOOL_NAME],
       disallowedTools: policy.availableTools.filter((tool) => tool !== AGENT_TOOL_NAME),
