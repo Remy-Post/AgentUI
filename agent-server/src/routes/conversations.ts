@@ -8,11 +8,22 @@ import { GitHubRepositoryChunk } from '../db/models/GitHubRepositoryChunk.ts'
 import { GitHubRepositorySource } from '../db/models/GitHubRepositorySource.ts'
 import { dropSession, isStreaming } from '../agent/session.ts'
 import { compressConversation } from '../agent/orchestration/compress.ts'
+import { ensureToolRegistrySeeded } from '../agent/orchestration/defaultTools.ts'
 import { normalizeModelClass, resolveContextWindow, resolveLatestModelId } from '../../util/vars.ts'
 import { nz } from '../util/numbers.ts'
 import type { CompressResponse, ContextDTO } from '../shared/types.ts'
 
 const router = Router()
+
+const EFFORT_VALUES = ['low', 'medium', 'high'] as const
+type Effort = (typeof EFFORT_VALUES)[number]
+
+const COLOR_VALUES = ['slate', 'sky', 'emerald', 'amber', 'rose', 'violet', 'stone'] as const
+type Color = (typeof COLOR_VALUES)[number]
+
+function isConversationColor(value: unknown): value is Color {
+  return typeof value === 'string' && COLOR_VALUES.includes(value as Color)
+}
 
 router.get('/', async (_req, res) => {
   const docs = await Conversation.find().sort({ updatedAt: -1 }).lean()
@@ -22,14 +33,15 @@ router.get('/', async (_req, res) => {
 router.post('/', async (req, res) => {
   const { title, model } = req.body ?? {}
   let resolvedModel: string | undefined = typeof model === 'string' && model.length > 0 ? model : undefined
+  const settingsDoc = await Settings.findOne({ key: 'global' })
+    .lean<{ defaultModel?: string; defaultChatColor?: string | null } | null>()
   if (!resolvedModel) {
-    const settingsDoc = await Settings.findOne({ key: 'global' })
-      .lean<{ defaultModel?: string } | null>()
     resolvedModel = resolveLatestModelId(normalizeModelClass(settingsDoc?.defaultModel))
   }
   const doc = await Conversation.create({
     title: title ?? 'New conversation',
     model: resolvedModel,
+    color: isConversationColor(settingsDoc?.defaultChatColor) ? settingsDoc.defaultChatColor : null,
   })
   res.status(201).json(doc)
 })
@@ -40,12 +52,6 @@ router.get('/:id', async (req, res) => {
   if (!doc) return res.status(404).json({ error: 'not_found' })
   return res.json(doc)
 })
-
-const EFFORT_VALUES = ['low', 'medium', 'high'] as const
-type Effort = (typeof EFFORT_VALUES)[number]
-
-const COLOR_VALUES = ['slate', 'sky', 'emerald', 'amber', 'rose', 'violet', 'stone'] as const
-type Color = (typeof COLOR_VALUES)[number]
 
 router.patch('/:id', async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: 'invalid_id' })
@@ -68,7 +74,7 @@ router.patch('/:id', async (req, res) => {
     if (body.color === null) {
       update.color = null
     } else if (typeof body.color === 'string') {
-      if (!COLOR_VALUES.includes(body.color as Color)) {
+      if (!isConversationColor(body.color)) {
         return res.status(400).json({ error: 'invalid_color' })
       }
       update.color = body.color
@@ -158,10 +164,8 @@ router.get('/:id/messages', async (req, res) => {
 // fallback in util/vars.ts is only used when the conversation has no
 // recorded turns yet (resolveContextWindow keys off the conversation's
 // selected model so the icon shows the correct cap before the first turn).
-// AgentUI does not enable the SdkBeta 'context-1m-2025-08-07' header
-// (see options.ts), so Sonnet 4.6 / Opus 4.7 run at their 200k default;
-// to extend them to 1M, enable the beta in SDK options and bump the
-// matching entries in MODEL_CONTEXT_WINDOWS.
+// The 1M context beta is enabled per Settings and only when options.ts says
+// the selected model family supports it; otherwise models use their API default.
 // Each tool definition (name + description + JSON schema) costs ~150 tokens
 // in the request payload. This is an order-of-magnitude estimate; varies
 // with schema complexity but stays in the right ballpark.
@@ -186,6 +190,8 @@ router.get('/:id/context', async (req, res) => {
     model?: string
   } | null>()
   if (!conversation) return res.status(404).json({ error: 'not_found' })
+
+  await ensureToolRegistrySeeded()
 
   // Top-level assistant rows are the ones we wrote per-message tokens on.
   // We treat presence of inputTokens as the marker; subagent inner turns

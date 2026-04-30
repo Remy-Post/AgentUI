@@ -19,9 +19,10 @@ import {
   type NormalizedStreamEvent,
 } from './events.ts'
 import {
-  buildContextWindowBulkOps,
-  buildTurnReconcileBulkOps,
-  buildTurnUsageBulkOps,
+  buildSyntheticTurnUsageFields,
+  buildTurnAccountingBulkOps,
+  normalizeUsageTotals,
+  type TurnUsageTotals,
   type TurnUsageEntry,
 } from './turnUsage.ts'
 import { nz } from '../../util/numbers.ts'
@@ -73,57 +74,72 @@ type AssistantPersistResult = {
   entry?: TurnUsageEntry
 }
 
-async function persistAssistantMessage(
-  conversationId: string,
+export type AssistantPersistencePlan =
+  | { kind: 'skip' }
+  | { kind: 'nested_visible'; content: string }
+  | { kind: 'top_level_visible'; content: string; model?: string }
+
+export function planAssistantMessagePersistence(
   message: SDKAssistantMessage,
-): Promise<AssistantPersistResult> {
+): AssistantPersistencePlan {
   const inner = message.message
-  const usage = inner?.usage
   const isTopLevel = message.parent_tool_use_id == null
   const model = typeof inner?.model === 'string' ? inner.model : undefined
   const text = extractAssistantText(message)
 
+  if (!text) return { kind: 'skip' }
+  if (!isTopLevel) return { kind: 'nested_visible', content: text }
+  return { kind: 'top_level_visible', content: text, model }
+}
+
+async function persistAssistantMessage(
+  conversationId: string,
+  message: SDKAssistantMessage,
+): Promise<AssistantPersistResult> {
+  const plan = planAssistantMessagePersistence(message)
+
   // Sub-agent (nested) messages: only persist when there's display text;
   // otherwise we'd write empty assistant rows for every internal step.
-  // Their tokens are absorbed into the turn-level reconcile delta.
-  if (!isTopLevel) {
-    if (!text) return {}
-    await Message.create({ conversationId, role: 'assistant', content: text })
+  // Their usage is covered by the SDK result totals stamped at turn end.
+  if (plan.kind === 'nested_visible') {
+    await Message.create({ conversationId, role: 'assistant', content: plan.content })
     return {}
   }
 
-  // Top-level: persist a row even when text is empty (tool-use-only API call)
-  // so that the turn's Message rows hold all the per-call usage data, which
-  // is required for buildTurnReconcileBulkOps to land its $inc on a real id.
-  const content: unknown = text || { kind: 'tool_use_only' }
-  const doc: Record<string, unknown> = { conversationId, role: 'assistant', content }
-  if (typeof model === 'string') doc.model = model
+  // Top-level tool-use-only assistant events often repeat or partially report
+  // usage. Keep them out of Mongo and stamp final result.usage on one visible
+  // row at result time instead.
+  if (plan.kind === 'skip') return {}
 
-  const inputTokens = usage ? nz(usage.input_tokens) : 0
-  const outputTokens = usage ? nz(usage.output_tokens) : 0
-  const cacheCreationInputTokens = usage ? nz(usage.cache_creation_input_tokens) : 0
-  const cacheReadInputTokens = usage ? nz(usage.cache_read_input_tokens) : 0
-
-  if (usage) {
-    doc.inputTokens = inputTokens
-    doc.outputTokens = outputTokens
-    doc.cacheCreationInputTokens = cacheCreationInputTokens
-    doc.cacheReadInputTokens = cacheReadInputTokens
+  const doc: Record<string, unknown> = {
+    conversationId,
+    role: 'assistant',
+    content: plan.content,
   }
+  if (typeof plan.model === 'string') doc.model = plan.model
 
   const created = await Message.create(doc)
-  const tokens = inputTokens + outputTokens
   return {
     entry: {
       id: created._id,
-      tokens,
-      model,
-      inputTokens,
-      outputTokens,
-      cacheCreationInputTokens,
-      cacheReadInputTokens,
+      model: plan.model,
     },
   }
+}
+
+function usageTotalsFromResult(usage: SDKResultMessage['usage'] | undefined): Required<TurnUsageTotals> | null {
+  if (!usage) return null
+  return normalizeUsageTotals({
+    inputTokens: nz(usage.input_tokens),
+    outputTokens: nz(usage.output_tokens),
+    cacheCreationInputTokens: nz(usage.cache_creation_input_tokens),
+    cacheReadInputTokens: nz(usage.cache_read_input_tokens),
+  })
+}
+
+function resultCost(result: SDKResultMessage): number | undefined {
+  const cost = result.total_cost_usd
+  return typeof cost === 'number' && Number.isFinite(cost) ? Math.max(0, cost) : undefined
 }
 
 export async function runConversationTurn({
@@ -166,60 +182,42 @@ export async function runConversationTurn({
         case 'result': {
           if (message.type === 'result') {
             const result = message as SDKResultMessage
-            const cost = result.total_cost_usd
-            const costOps =
-              typeof cost === 'number' && Number.isFinite(cost)
-                ? buildTurnUsageBulkOps(turnEntries, cost)
-                : []
-            if (typeof cost === 'number' && Number.isFinite(cost)) totalCostUsd = cost
-            const contextOps = buildContextWindowBulkOps(turnEntries, result.modelUsage)
+            const cost = resultCost(result)
+            if (cost !== undefined) totalCostUsd = cost
 
-            const usage = result.usage
-            const reconcileOps = usage
-              ? (() => {
-                  const inputTokens = nz(usage.input_tokens)
-                  const outputTokens = nz(usage.output_tokens)
-                  const cacheCreationInputTokens = nz(usage.cache_creation_input_tokens)
-                  const cacheReadInputTokens = nz(usage.cache_read_input_tokens)
+            const usageTotals = usageTotalsFromResult(result.usage)
+            if (usageTotals) {
+              totalInputTokens = usageTotals.inputTokens
+              totalOutputTokens = usageTotals.outputTokens
+              totalCacheCreationInputTokens = usageTotals.cacheCreationInputTokens
+              totalCacheReadInputTokens = usageTotals.cacheReadInputTokens
+            }
 
-                  totalInputTokens = inputTokens
-                  totalOutputTokens = outputTokens
-                  totalCacheCreationInputTokens = cacheCreationInputTokens
-                  totalCacheReadInputTokens = cacheReadInputTokens
+            if (usageTotals || cost !== undefined) {
+              const allOps = buildTurnAccountingBulkOps(
+                turnEntries,
+                usageTotals ?? {},
+                cost,
+                result.modelUsage,
+              )
+              if (allOps.length > 0) await Message.bulkWrite(allOps, { ordered: false })
+            }
 
-                  return buildTurnReconcileBulkOps(turnEntries, {
-                    inputTokens,
-                    outputTokens,
-                    cacheCreationInputTokens,
-                    cacheReadInputTokens,
-                  })
-                })()
-              : []
-
-            const allOps = [...costOps, ...contextOps, ...reconcileOps]
-            if (allOps.length > 0) await Message.bulkWrite(allOps, { ordered: false })
-
-            // Edge case: a turn produced no top-level assistant entries but the
-            // SDK still reports usage. Drop a synthetic accounting row so the
-            // tokens show up in Finance aggregation. The renderer hides
+            // Edge case: a turn produced no visible top-level assistant row but
+            // the SDK still reports usage/cost. Drop a synthetic accounting row
+            // so the tokens show up in Finance aggregation. The renderer hides
             // content kinds tagged 'turn_usage'.
-            const synthIn = totalInputTokens ?? 0
-            const synthOut = totalOutputTokens ?? 0
-            const synthCacheCreate = totalCacheCreationInputTokens ?? 0
-            const synthCacheRead = totalCacheReadInputTokens ?? 0
-            if (
-              usage &&
-              turnEntries.length === 0 &&
-              synthIn + synthOut + synthCacheCreate + synthCacheRead > 0
-            ) {
+            const syntheticUsage = buildSyntheticTurnUsageFields(
+              conversation.model,
+              usageTotals ?? undefined,
+              cost,
+              result.modelUsage,
+            )
+            if (turnEntries.length === 0 && syntheticUsage) {
               await Message.create({
                 conversationId,
                 role: 'assistant',
-                content: { kind: 'turn_usage' },
-                inputTokens: synthIn,
-                outputTokens: synthOut,
-                cacheCreationInputTokens: synthCacheCreate,
-                cacheReadInputTokens: synthCacheRead,
+                ...syntheticUsage,
               })
             }
           }

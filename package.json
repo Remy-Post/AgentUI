@@ -5,17 +5,23 @@
   "description": "Electron desktop app wrapping the Claude Agent SDK as a chat UI",
   "workspaces": [
     "agent-client",
-    "agent-server"
+    "agent-server",
+    "agent-web"
   ],
   "scripts": {
-    "dev": "concurrently -n srv,app -c yellow,cyan \"npm:dev -w agent-server\" \"npm:dev -w agent-client\"",
+    "dev": "concurrently -k -n srv,app,web -c yellow,cyan,magenta \"npm:dev -w agent-server\" \"npm:dev -w agent-client\" \"npm:dev -w agent-web\"",
+    "dev:app": "concurrently -k -n srv,app -c yellow,cyan \"npm:dev -w agent-server\" \"npm:dev -w agent-client\"",
+    "dev:web": "concurrently -k -n srv,web -c yellow,magenta \"npm:dev -w agent-server\" \"npm:dev -w agent-web\"",
+    "dev:server": "npm run dev -w agent-server",
     "start": "npm run build && concurrently -k -n srv,app -c yellow,cyan \"npm run start -w agent-server\" \"npm run start -w agent-client\"",
     "cli": "npm run cli -w agent-server",
     "test": "npm test -w agent-server",
-    "typecheck": "npm run typecheck:server && npm run typecheck:web",
+    "typecheck": "npm run typecheck:server && npm run typecheck:app && npm run typecheck:web",
     "typecheck:server": "npm run typecheck -w agent-server",
-    "typecheck:web": "npm run typecheck -w agent-client",
+    "typecheck:app": "npm run typecheck -w agent-client",
+    "typecheck:web": "npm run typecheck -w agent-web",
     "build": "npm run build -w agent-server && npm run build -w agent-client",
+    "build:web": "npm run build -w agent-web",
     "build:win": "npm run build -w agent-server && npm run build:win -w agent-client",
     "build:mac": "npm run build -w agent-server && npm run build:mac -w agent-client",
     "build:linux": "npm run build -w agent-server && npm run build:linux -w agent-client",

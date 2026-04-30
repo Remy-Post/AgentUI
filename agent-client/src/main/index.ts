@@ -6,6 +6,7 @@ import icon from '../../resources/icon.png?asset'
 import { startServerProcess, stopServerProcess } from './server-process'
 import { readSecrets, setApiKey, hasApiKey, setGitHubToken, hasGitHubToken } from './secrets'
 import { getConfig, setConfig } from './config'
+import { installKeybindMenu, type KeybindMenuRecord } from './keybind-menu'
 import {
   captureRendererConsoleMessage,
   captureRendererLog,
@@ -143,6 +144,10 @@ ipcMain.handle('secrets:hasGitHubToken', async () => hasGitHubToken())
 ipcMain.handle('config:get', async (_event, key: string) => getConfig(key))
 ipcMain.handle('config:set', async (_event, key: string, value: unknown) => setConfig(key, value))
 ipcMain.handle('logs:getClientLogs', async () => getClientLogs())
+ipcMain.handle('keybinds:setAppKeybinds', async (_event, records: KeybindMenuRecord[]) => {
+  installKeybindMenu(Array.isArray(records) ? records : [])
+  return { ok: true }
+})
 
 app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.electron')

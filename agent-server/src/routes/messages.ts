@@ -9,6 +9,8 @@ import type { SendMessageRequest, TurnMode } from '../shared/types.ts'
 
 const TURN_MODE_VALUES: TurnMode[] = ['plan', 'research', 'debug']
 
+type TurnResult = Awaited<ReturnType<typeof runConversationTurn>>
+
 function parseModes(value: unknown): TurnMode[] {
   if (!Array.isArray(value)) return []
   const seen = new Set<TurnMode>()
@@ -17,6 +19,17 @@ function parseModes(value: unknown): TurnMode[] {
     if ((TURN_MODE_VALUES as string[]).includes(entry)) seen.add(entry as TurnMode)
   }
   return [...seen]
+}
+
+function hasAccountingResult(turnResult: TurnResult | undefined): turnResult is TurnResult {
+  return Boolean(
+    turnResult &&
+      (typeof turnResult.totalCostUsd === 'number' ||
+        typeof turnResult.totalInputTokens === 'number' ||
+        typeof turnResult.totalOutputTokens === 'number' ||
+        typeof turnResult.totalCacheCreationInputTokens === 'number' ||
+        typeof turnResult.totalCacheReadInputTokens === 'number'),
+  )
 }
 
 const router = Router({ mergeParams: true })
@@ -65,18 +78,18 @@ router.post<'/', { id: string }>('/', async (req, res) => {
   } finally {
     markBusy(conversationId, false)
     sse.close()
-    if (turnResult && typeof turnResult.totalCostUsd === 'number') {
+    if (hasAccountingResult(turnResult)) {
+      const inc: Record<string, number> = {
+        totalInputTokens: turnResult.totalInputTokens ?? 0,
+        totalOutputTokens: turnResult.totalOutputTokens ?? 0,
+        totalCacheCreationInputTokens: turnResult.totalCacheCreationInputTokens ?? 0,
+        totalCacheReadInputTokens: turnResult.totalCacheReadInputTokens ?? 0,
+      }
+      if (typeof turnResult.totalCostUsd === 'number') inc.totalCostUsd = turnResult.totalCostUsd
+
       await Conversation.updateOne(
         { _id: conversationId },
-        {
-          $inc: {
-            totalCostUsd: turnResult.totalCostUsd,
-            totalInputTokens: turnResult.totalInputTokens ?? 0,
-            totalOutputTokens: turnResult.totalOutputTokens ?? 0,
-            totalCacheCreationInputTokens: turnResult.totalCacheCreationInputTokens ?? 0,
-            totalCacheReadInputTokens: turnResult.totalCacheReadInputTokens ?? 0,
-          },
-        },
+        { $inc: inc },
       )
     }
   }

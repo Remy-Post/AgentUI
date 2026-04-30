@@ -170,7 +170,7 @@ export default function EditConversationModal({
                 aria-pressed={selected}
                 title={key}
                 style={{
-                  background: palette.main,
+                  background: palette.input,
                   borderColor: palette.side
                 }}
                 onClick={() => setDraft((d) => ({ ...d, color: key }))}
@@ -186,7 +186,7 @@ export default function EditConversationModal({
           })}
         </div>
         <span className="chrome" style={{ display: 'block', marginTop: 8 }}>
-          The list shows the deeper shade; the main interface uses the lighter shade.
+          The list shows the deeper shade; the input uses the lighter shade.
         </span>
       </div>
 

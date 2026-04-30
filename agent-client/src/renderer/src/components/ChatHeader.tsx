@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Download, PanelRight } from 'lucide-react'
 import EffortToggle from './EffortToggle'
 import ContextsChip from './ContextsChip'
+import { useKeybindAction } from '../hooks/useKeybindAction'
 import { useKeybindShortcut } from '../hooks/useKeybinds'
 import { formatStartedAt } from '../lib/format'
 import { apiFetch } from '../lib/api'
+import { isValidTitle } from '../lib/conversationColors'
 import type { ConversationDTO, MessageDTO } from '@shared/types'
 
 type Props = {
@@ -60,13 +63,94 @@ export default function ChatHeader({
   inspectorOpen,
   onToggleInspector
 }: Props): React.JSX.Element {
+  const queryClient = useQueryClient()
   const [exporting, setExporting] = useState(false)
   const [exportStatus, setExportStatus] = useState<ExportStatus>(null)
-  const inspectorShortcut = useKeybindShortcut('inspector.toggle')
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState(conversation.title)
+  const [titleError, setTitleError] = useState<string | null>(null)
+  const titleInputRef = useRef<HTMLInputElement | null>(null)
+  const inspectorShortcut = useKeybindShortcut('chat.toggleInspector')
   const inspectorLabel = inspectorOpen ? 'Hide run inspector' : 'Show run inspector'
   const inspectorTitle = inspectorShortcut
     ? `${inspectorLabel} (${inspectorShortcut})`
     : inspectorLabel
+
+  useEffect(() => {
+    if (!editingTitle) setTitleDraft(conversation.title)
+  }, [conversation.title, editingTitle])
+
+  useEffect(() => {
+    if (!editingTitle) return
+    const input = titleInputRef.current
+    input?.focus()
+    input?.select()
+  }, [editingTitle])
+
+  const titleMutation = useMutation({
+    mutationFn: (title: string) =>
+      apiFetch<ConversationDTO>(`/api/sessions/${conversation._id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title })
+      }),
+    onMutate: async (title) => {
+      await queryClient.cancelQueries({ queryKey: ['conversations'] })
+      const previous = queryClient.getQueryData<ConversationDTO[]>(['conversations'])
+      if (previous) {
+        queryClient.setQueryData<ConversationDTO[]>(
+          ['conversations'],
+          previous.map((c) => (c._id === conversation._id ? { ...c, title } : c))
+        )
+      }
+      return { previous }
+    },
+    onError: (_err, _title, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['conversations'], ctx.previous)
+      setTitleDraft(conversation.title)
+      setTitleError('Title save failed.')
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['conversations'] })
+    }
+  })
+
+  const startTitleEdit = (): void => {
+    setTitleError(null)
+    setTitleDraft(conversation.title)
+    setEditingTitle(true)
+  }
+
+  const cancelTitleEdit = (): void => {
+    setTitleError(null)
+    setTitleDraft(conversation.title)
+    setEditingTitle(false)
+  }
+
+  const saveTitleEdit = (): void => {
+    const trimmed = titleDraft.trim()
+    if (trimmed === conversation.title) {
+      setTitleError(null)
+      setEditingTitle(false)
+      return
+    }
+    if (!isValidTitle(trimmed)) {
+      setTitleDraft(conversation.title)
+      setTitleError('Title must be at least 4 characters.')
+      setEditingTitle(false)
+      return
+    }
+    setTitleError(null)
+    setEditingTitle(false)
+    titleMutation.mutate(trimmed)
+  }
+
+  const handleTitleKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
+    if (event.key === 'Enter') {
+      event.currentTarget.blur()
+    } else if (event.key === 'Escape') {
+      cancelTitleEdit()
+    }
+  }
 
   const exportConversation = async (): Promise<void> => {
     setExportStatus(null)
@@ -95,14 +179,63 @@ export default function ChatHeader({
     }
   }
 
+  useKeybindAction('chat.exportConversation', () => {
+    if (exporting) return false
+    void exportConversation()
+    return true
+  })
+
   return (
     <header className="chat-header">
       <div style={{ minWidth: 0 }}>
-        <div className="chat-title">{conversation.title}</div>
+        {editingTitle ? (
+          <input
+            ref={titleInputRef}
+            className="chat-title-input"
+            value={titleDraft}
+            onChange={(event) => setTitleDraft(event.target.value)}
+            onBlur={saveTitleEdit}
+            onKeyDown={handleTitleKeyDown}
+            aria-label="Conversation title"
+            disabled={titleMutation.isPending}
+          />
+        ) : (
+          <div
+            className="chat-title"
+            role="button"
+            tabIndex={0}
+            title="Double-click to edit title"
+            onDoubleClick={startTitleEdit}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                startTitleEdit()
+              }
+            }}
+          >
+            {conversation.title}
+          </div>
+        )}
         <div className="chat-sub">
           <span className="chrome">{messages.length} turns</span>
           <span className="chrome">·</span>
           <span className="chrome">started {formatStartedAt(conversation.createdAt)}</span>
+          {titleMutation.isPending && (
+            <>
+              <span className="chrome">·</span>
+              <span className="chrome" aria-live="polite">
+                Saving title…
+              </span>
+            </>
+          )}
+          {titleError && (
+            <>
+              <span className="chrome">·</span>
+              <span className="chrome" aria-live="polite" style={{ color: 'var(--color-error)' }}>
+                {titleError}
+              </span>
+            </>
+          )}
           {exportStatus && (
             <>
               <span className="chrome">·</span>

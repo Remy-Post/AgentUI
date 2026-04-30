@@ -108,7 +108,7 @@ export interface BetaUsage {
 }
 ```
 
-**Per-message attribution is feasible** for tokens and model. Cost is **not** carried at this level. `parent_tool_use_id` distinguishes top-level assistants (`null`) from subagent inner turns (`string`).
+**Per-message attribution is observable but not safe as an additive ledger**. In exported AgentUI conversations, top-level tool-use-only and final-answer assistant events can repeat or partially report the same usage, so summing streamed assistant `usage` values can double-count and produce negative reconciliation deltas. Cost is **not** carried at this level. `parent_tool_use_id` distinguishes top-level assistants (`null`) from subagent inner turns (`string`).
 
 ## 3. Subagent / task system messages
 
@@ -144,10 +144,10 @@ export declare type SDKTaskProgressMessage = {
 ## 4. Plan implications
 
 - **Schemas**: `Message` gets optional `inputTokens`, `outputTokens`, `cacheCreationInputTokens`, `cacheReadInputTokens`, `model`. `Conversation` gets `totalInputTokens`, `totalOutputTokens`, `totalCacheCreationInputTokens`, `totalCacheReadInputTokens` (default 0).
-- **Per-message tokens**: written from `assistant.message.usage` and `assistant.message.model` at `Message.create` time.
-- **Per-message cost**: distributed at `result` time across the turn's tracked top-level assistant ids, weighted by `(input_tokens + output_tokens)` per row, with even-split fallback when the sum is zero. Skipped entirely when `total_cost_usd === 0`.
+- **Per-turn tokens**: written once from `result.usage`, stamped onto the last visible top-level assistant message for the turn. If a turn has no visible top-level assistant text, write a hidden `{ kind: 'turn_usage' }` accounting row.
+- **Per-turn cost**: written once from `result.total_cost_usd` to the same visible assistant or hidden accounting row.
 - **Conversation totals**: incremented from `result.usage` (cumulative, includes subagent work), so the conversation total stays correct even when per-row attribution is scoped to top-level only.
-- **Aggregation**: `/api/usage` aggregates from `Message` (single source of truth for per-row tokens/cost), with a `$lookup` onto `Conversation` for `recentRuns` titles.
+- **Aggregation**: `/api/usage` aggregates from `Message` accounting rows (visible assistant rows with result totals plus hidden `turn_usage` rows), with a `$lookup` onto `Conversation` for `recentRuns` titles.
 
 ## 5. Type entry point
 

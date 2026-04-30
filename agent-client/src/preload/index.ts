@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import type { ClientLogsDTO } from '../main/logs'
+import type { KeybindMenuRecord } from '../main/keybind-menu'
 
 const api = {
   getServerPort: (): Promise<number | null> => ipcRenderer.invoke('server:getPort'),
@@ -14,7 +15,14 @@ const api = {
   getConfig: (key: string): Promise<unknown> => ipcRenderer.invoke('config:get', key),
   setConfig: (key: string, value: unknown): Promise<{ ok: true } | { ok: false; reason: string }> =>
     ipcRenderer.invoke('config:set', key, value),
-  getClientLogs: (): Promise<ClientLogsDTO> => ipcRenderer.invoke('logs:getClientLogs')
+  getClientLogs: (): Promise<ClientLogsDTO> => ipcRenderer.invoke('logs:getClientLogs'),
+  setAppKeybinds: (records: KeybindMenuRecord[]): Promise<{ ok: true }> =>
+    ipcRenderer.invoke('keybinds:setAppKeybinds', records),
+  onKeybindAction: (callback: (actionId: string) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, actionId: string): void => callback(actionId)
+    ipcRenderer.on('keybind:run', listener)
+    return () => ipcRenderer.removeListener('keybind:run', listener)
+  }
 }
 
 if (process.contextIsolated) {

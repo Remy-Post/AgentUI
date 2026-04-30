@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Keyboard, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, Pencil, Plus, Trash2 } from 'lucide-react'
 import Modal from '../Modal'
+import { useKeybindAction } from '../../hooks/useKeybindAction'
 import { useKeybinds } from '../../hooks/useKeybinds'
 import { useSettings } from '../../hooks/useSettings'
 import {
@@ -10,6 +11,7 @@ import {
   findEnabledDuplicate,
   formatKeybind,
   normalizeChord,
+  reservedKeybindReason,
   type KeybindActionId,
   type KeybindRecord
 } from '../../lib/keybinds'
@@ -41,6 +43,15 @@ function duplicateMessage(duplicate: KeybindRecord | null): string {
   return `Conflicts with ${duplicate.label} (${formatKeybind(duplicate.keys)}).`
 }
 
+function formatKeybindCount(total: number): string {
+  return total === 1 ? '1 keybind' : `${total} keybinds`
+}
+
+function formatGroupSummary(enabledCount: number, total: number): string {
+  if (total === 0) return '0 enabled'
+  return `${enabledCount}/${total} enabled`
+}
+
 function KeybindEditor({
   open,
   existing,
@@ -67,7 +78,8 @@ function KeybindEditor({
     enabled: draft.enabled
   })
   const conflict = duplicateMessage(duplicate)
-  const valid = !!normalizedKeys && !duplicate
+  const reserved = reservedKeybindReason(normalizedKeys)
+  const valid = !!normalizedKeys && !duplicate && !reserved
   const title = existing ? 'Edit keybind' : 'Add keybind'
   const actionLocked = existing?.source === 'preset'
 
@@ -166,9 +178,9 @@ function KeybindEditor({
                 : 'Click to record'}
           </span>
         </button>
-        {(captureError || conflict || !normalizedKeys) && (
-          <div className={`keybind-validation ${conflict ? 'err' : ''}`}>
-            {captureError || conflict || 'Record a shortcut before saving.'}
+        {(captureError || conflict || reserved || !normalizedKeys) && (
+          <div className={`keybind-validation ${conflict || reserved ? 'err' : ''}`}>
+            {captureError || conflict || reserved || 'Record a shortcut before saving.'}
           </div>
         )}
       </div>
@@ -199,6 +211,7 @@ export default function KeybindsTab(): React.JSX.Element {
   const [editing, setEditing] = useState<KeybindRecord | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [inlineError, setInlineError] = useState('')
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
 
   const enabledCount = keybinds.filter((keybind) => keybind.enabled).length
   const customCount = keybinds.filter((keybind) => keybind.source === 'custom').length
@@ -217,6 +230,11 @@ export default function KeybindsTab(): React.JSX.Element {
     setInlineError('')
     setModalOpen(true)
   }
+
+  useKeybindAction('settings.newKeybind', () => {
+    openCreate()
+    return true
+  })
 
   const openEdit = (keybind: KeybindRecord): void => {
     setEditing(keybind)
@@ -237,6 +255,11 @@ export default function KeybindsTab(): React.JSX.Element {
   }
 
   const setEnabled = (keybind: KeybindRecord, enabled: boolean): void => {
+    const reserved = reservedKeybindReason(keybind.keys)
+    if (enabled && reserved) {
+      setInlineError(reserved)
+      return
+    }
     const duplicate = findEnabledDuplicate(keybinds, { ...keybind, enabled })
     if (duplicate) {
       setInlineError(duplicateMessage(duplicate))
@@ -252,7 +275,7 @@ export default function KeybindsTab(): React.JSX.Element {
         <div className="pane-head-text">
           <div className="pane-title">Keybinds</div>
           <div className="pane-sub">
-            Configure app navigation and integration shortcuts. {enabledCount} of {keybinds.length}{' '}
+            Configure Windows shortcuts for app and web actions. {enabledCount} of {keybinds.length}{' '}
             enabled{customCount > 0 ? `, ${customCount} custom` : ''}.
           </div>
         </div>
@@ -267,74 +290,95 @@ export default function KeybindsTab(): React.JSX.Element {
 
       {grouped.length > 0 ? (
         <div className="keybind-groups">
-          {grouped.map(([group, records]) => (
-            <section key={group} className="keybind-group">
-              <div className="keybind-group-head">
-                <span className="cap">{group}</span>
-                <span className="chrome">{records.length}</span>
-              </div>
-              <div className="list-card">
-                {records.map((keybind) => {
-                  const action = KEYBIND_ACTION_BY_ID.get(keybind.actionId)
-                  return (
-                    <div
-                      key={keybind.id}
-                      className={`list-row keybind-row ${keybind.enabled ? '' : 'disabled'}`}
-                    >
-                      <div className="glyph">
-                        <Keyboard size={14} />
-                      </div>
-                      <div className="keybind-copy">
-                        <div className="keybind-name-row">
-                          <span className="name">{keybind.label}</span>
-                          <span className="keybind-source chrome">{keybind.source}</span>
+          {grouped.map(([group, records]) => {
+            const enabledInGroup = records.filter((keybind) => keybind.enabled).length
+            return (
+              <details
+                key={group}
+                className="keybind-group"
+                open={openGroups[group] ?? false}
+                onToggle={(event) => {
+                  const isOpen = event.currentTarget.open
+                  setOpenGroups((current) => ({ ...current, [group]: isOpen }))
+                }}
+              >
+                <summary className="keybind-group-summary">
+                  <span className="keybind-group-copy">
+                    <span className="keybind-group-title-row">
+                      <span className="keybind-group-title">{group}</span>
+                      <span className="chrome">{formatKeybindCount(records.length)}</span>
+                    </span>
+                  </span>
+                  <span className="keybind-group-count mono">
+                    {formatGroupSummary(enabledInGroup, records.length)}
+                  </span>
+                  <ChevronDown className="keybind-group-chevron" size={14} />
+                </summary>
+                <div className="keybind-rows">
+                  {records.map((keybind) => {
+                    const action = KEYBIND_ACTION_BY_ID.get(keybind.actionId)
+                    const shortcut = formatKeybind(keybind.keys)
+                    return (
+                      <div
+                        key={keybind.id}
+                        className={`list-row keybind-row ${keybind.enabled ? '' : 'disabled'}`}
+                      >
+                        <div className="keybind-glyph" title={shortcut}>
+                          {shortcut}
                         </div>
-                        <div className="keybind-meta">
-                          <span className="keycap">{formatKeybind(keybind.keys)}</span>
-                          {!keybind.enabled && <span className="chrome">off</span>}
+                        <div className="keybind-copy">
+                          <div className="keybind-name-row">
+                            <span className="name">{keybind.label}</span>
+                            <span className="keybind-source chrome">{keybind.source}</span>
+                          </div>
+                          {!keybind.enabled && (
+                            <div className="keybind-meta">
+                              <span className="chrome">off</span>
+                            </div>
+                          )}
+                          {showDescriptions &&
+                            keybind.source === 'preset' &&
+                            action?.description && <div className="desc">{action.description}</div>}
                         </div>
-                        {showDescriptions && keybind.source === 'preset' && action?.description && (
-                          <div className="desc">{action.description}</div>
-                        )}
-                      </div>
-                      <div className="row-actions">
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => openEdit(keybind)}
-                          title="Edit"
-                          style={{ padding: '6px 10px' }}
-                        >
-                          <Pencil size={12} />
-                        </button>
-                        {keybind.source === 'custom' && (
+                        <div className="row-actions">
                           <button
                             type="button"
-                            className="btn-danger"
-                            onClick={() => removeKeybind(keybind.id)}
-                            title="Delete"
+                            className="btn-secondary"
+                            onClick={() => openEdit(keybind)}
+                            title="Edit"
+                            style={{ padding: '6px 10px' }}
                           >
-                            <Trash2 size={12} />
+                            <Pencil size={12} />
                           </button>
-                        )}
-                        <label
-                          className="toggle"
-                          title={keybind.enabled ? 'Disable keybind' : 'Enable keybind'}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={keybind.enabled}
-                            onChange={(event) => setEnabled(keybind, event.target.checked)}
-                          />
-                          <span className="slider" />
-                        </label>
+                          {keybind.source === 'custom' && (
+                            <button
+                              type="button"
+                              className="btn-danger"
+                              onClick={() => removeKeybind(keybind.id)}
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                          <label
+                            className="toggle"
+                            title={keybind.enabled ? 'Disable keybind' : 'Enable keybind'}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={keybind.enabled}
+                              onChange={(event) => setEnabled(keybind, event.target.checked)}
+                            />
+                            <span className="slider" />
+                          </label>
+                        </div>
                       </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          ))}
+                    )
+                  })}
+                </div>
+              </details>
+            )
+          })}
         </div>
       ) : (
         <div className="list-card">

@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import mongoose from 'mongoose'
-import { buildAgentDefinitions, ORCHESTRATOR_AGENT_NAME } from './agents.ts'
+import { buildAgentDefinitions, composeOrchestratorPrompt, ORCHESTRATOR_AGENT_NAME } from './agents.ts'
 import { ensureTurnSubagents, planDynamicSubagentTasks } from './dynamicSubagents.ts'
 import { buildQueryOptionsFromRuntime } from './options.ts'
 import { normalizeSdkMessage } from './events.ts'
@@ -392,6 +392,13 @@ test('does not inject hidden runtime subagents when Mongo has none selected', ()
   assert.deepEqual(Object.keys(agents), [ORCHESTRATOR_AGENT_NAME])
 })
 
+test('orchestrator prompt forbids invented tool-backed current data', () => {
+  const prompt = composeOrchestratorPrompt()
+
+  assert.match(prompt, /current, latest, weather, news/)
+  assert.match(prompt, /do not invent data/)
+})
+
 test('plans separate one-purpose dynamic subagents with narrow tool sets', () => {
   const policy = resolveToolPolicy([
     { id: 'read_file', enabled: true },
@@ -418,6 +425,23 @@ test('plans separate one-purpose dynamic subagents with narrow tool sets', () =>
   assert.deepEqual(tasks.find((task) => task.kind === 'research')?.tools, ['Read', 'Grep', 'Glob'])
   assert.deepEqual(tasks.find((task) => task.kind === 'code')?.tools, ['Read', 'Grep', 'Glob', 'Edit', 'MultiEdit'])
   assert.deepEqual(tasks.find((task) => task.kind === 'test')?.tools, ['Read', 'Grep', 'Glob', 'Bash'])
+})
+
+test('plans weather and news requests as web tasks when web tools are enabled', () => {
+  const policy = resolveToolPolicy([
+    { id: 'WebSearch', enabled: true },
+    { id: 'WebFetch', enabled: true },
+  ])
+  const tasks = planDynamicSubagentTasks(
+    'What is the weather in London today and the latest news?',
+    policy,
+    { _id: 'conversation-1', model: 'claude-sonnet-4-6' },
+  )
+
+  assert.equal(tasks.length, 1)
+  assert.equal(tasks[0].kind, 'web')
+  assert.deepEqual(tasks[0].tools, ['WebSearch', 'WebFetch'])
+  assert.match(tasks[0].prompt, /instead of guessing/)
 })
 
 test('plans Workspace tasks with only the required service MCP scope', () => {
@@ -720,6 +744,25 @@ test('normalizes SDK progress messages to existing SSE event names', () => {
 
   assert.equal(event?.name, 'tool_progress')
   assert.equal(event?.data.tool_name, 'Grep')
+})
+
+test('normalizes SDK task metadata for active subagent display', () => {
+  const event = normalizeSdkMessage({
+    type: 'system',
+    subtype: 'task_started',
+    task_id: 'task-1',
+    agent_name: 'agentui_web_weather',
+    description: 'Checking current weather',
+    uuid: '00000000-0000-4000-8000-000000000001',
+    session_id: 'session-1',
+  } as unknown as Parameters<typeof normalizeSdkMessage>[0])
+
+  assert.equal(event?.name, 'tool_progress')
+  assert.equal(event?.data.tool_name, 'Agent')
+  assert.equal(event?.data.task_id, 'task-1')
+  assert.equal(event?.data.agent_name, 'agentui_web_weather')
+  assert.equal(event?.data.status, 'started')
+  assert.equal(event?.data.description, 'Checking current weather')
 })
 
 test('normalizes SDK memory recall messages', () => {

@@ -17,6 +17,11 @@ const SettingsSchema = new mongoose.Schema(
     autoDreamEnabled: { type: Boolean, default: false },
     showAppText: { type: Boolean, default: true },
     showDescriptions: { type: Boolean, default: true },
+    defaultChatColor: {
+      type: String,
+      enum: ['slate', 'sky', 'emerald', 'amber', 'rose', 'violet', 'stone', null],
+      default: null,
+    },
   },
   { timestamps: true },
 )

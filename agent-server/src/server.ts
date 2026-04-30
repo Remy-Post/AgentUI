@@ -25,7 +25,36 @@ installServerLogCapture()
 
 const app = express()
 
-app.use(cors({ origin: true }))
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5174',
+  'http://localhost:4174',
+  'http://127.0.0.1:4174',
+]
+
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
+
+const configuredAllowedOrigins = (process.env.AGENT_ALLOWED_ORIGINS ?? '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+
+const allowedOrigins = new Set([...DEFAULT_ALLOWED_ORIGINS, ...configuredAllowedOrigins])
+
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin || origin === 'null' || origin === 'file://') return true
+  if (allowedOrigins.has(origin)) return true
+  try {
+    const parsed = new URL(origin)
+    return parsed.protocol === 'http:' && LOOPBACK_HOSTS.has(parsed.hostname)
+  } catch {
+    return false
+  }
+}
+
+app.use(cors({ origin: (origin, callback) => callback(null, isAllowedOrigin(origin)) }))
 app.use(express.json({ limit: '4mb' }))
 
 app.get('/health', (_req, res) => {

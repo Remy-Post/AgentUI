@@ -10,7 +10,10 @@ import { useAppContext } from './components/AppContext'
 import { apiFetch, getServerOrigin } from './lib/api'
 import { CONVERSATION_COLORS } from './lib/conversationColors'
 import {
+  emitKeybindAction,
   findKeybindForEvent,
+  isEditableTarget,
+  reservedKeybindReason,
   settingsTabForKeybindAction,
   viewForKeybindAction,
   type KeybindActionId
@@ -30,9 +33,10 @@ function App(): React.JSX.Element {
   const [paletteQuery, setPaletteQuery] = useState('')
   const { isLoading, setIsLoading } = useAppContext()
   const [serverError, setServerError] = useState(false)
+  const sidebarConfig = useConfig<boolean>('sidebar.collapsed', false)
   const inspectorConfig = useConfig<boolean>('inspector.open', true)
   const { keybinds } = useKeybinds()
-  const { data: appSettings } = useSettings()
+  const { data: appSettings, update: updateAppSettings } = useSettings()
   const queryClient = useQueryClient()
 
   const conversationsQuery = useQuery({
@@ -56,15 +60,19 @@ function App(): React.JSX.Element {
   })
   const activeConversation =
     conversationsQuery.data?.find((c) => c._id === conversationId) ?? null
-  // Only tint the main interface when it actually relates to the active
-  // conversation. The chat view is the only view that operates on a specific
-  // conversation; logs, memory, finance, and settings stand on their own.
-  const mainTint =
+  // Only apply conversation surface styling when the view actually relates to
+  // the active conversation. Logs, memory, finance, and settings stand on their own.
+  const conversationPalette =
     view === 'chat' && activeConversation?.color
-      ? CONVERSATION_COLORS[activeConversation.color].main
+      ? CONVERSATION_COLORS[activeConversation.color]
       : null
-  const rootStyle = mainTint
-    ? ({ ['--main-tint' as string]: mainTint, height: '100%' } as React.CSSProperties)
+  const rootStyle = conversationPalette
+      ? ({
+        ['--main-tint' as string]: conversationPalette.main,
+        ['--composer-tint' as string]: conversationPalette.input,
+        ['--user-message-tint' as string]: conversationPalette.input,
+        height: '100%'
+      } as React.CSSProperties)
     : ({ height: '100%' } as React.CSSProperties)
 
   const closePalette = (): void => {
@@ -79,35 +87,64 @@ function App(): React.JSX.Element {
   }
 
   const runKeybindAction = useCallback(
-    (actionId: KeybindActionId): void => {
+    (actionId: KeybindActionId): boolean => {
+      if (isEditableTarget(document.activeElement)) return false
+
       if (actionId === 'command.openPalette') {
         setPaletteOpen(true)
-        return
+        return true
+      }
+
+      if (actionId === 'app.toggleSidebar') {
+        sidebarConfig.setValue(!sidebarConfig.value)
+        return true
+      }
+
+      if (actionId === 'app.toggleTextLabels') {
+        updateAppSettings({ showAppText: !(appSettings?.showAppText ?? true) })
+        return true
+      }
+
+      if (actionId === 'app.toggleDescriptions') {
+        updateAppSettings({ showDescriptions: !(appSettings?.showDescriptions ?? true) })
+        return true
       }
 
       if (actionId === 'chat.newConversation') {
         if (!createConversation.isPending) createConversation.mutate()
-        return
+        return true
       }
 
-      if (actionId === 'inspector.toggle') {
+      if (actionId === 'chat.toggleInspector') {
         inspectorConfig.setValue(!inspectorConfig.value)
-        return
+        return true
       }
 
       const viewTarget = viewForKeybindAction(actionId)
       if (viewTarget) {
         setView(viewTarget)
-        return
+        return true
       }
 
       const settingsTarget = settingsTabForKeybindAction(actionId)
       if (settingsTarget) {
         setSettingsTab(settingsTarget)
         setView('settings')
+        return true
       }
+
+      return emitKeybindAction(actionId)
     },
-    [createConversation, inspectorConfig, setSettingsTab, setView]
+    [
+      appSettings?.showAppText,
+      appSettings?.showDescriptions,
+      createConversation,
+      inspectorConfig,
+      setSettingsTab,
+      setView,
+      sidebarConfig,
+      updateAppSettings
+    ]
   )
 
   useEffect(() => {
@@ -130,13 +167,28 @@ function App(): React.JSX.Element {
       const keybind = findKeybindForEvent(event, keybinds)
       if (!keybind) return
 
-      event.preventDefault()
-      runKeybindAction(keybind.actionId)
+      if (runKeybindAction(keybind.actionId)) event.preventDefault()
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [keybinds, runKeybindAction])
+
+  useEffect(() => {
+    void window.api.setAppKeybinds(
+      keybinds
+        .filter(({ keys }) => !reservedKeybindReason(keys))
+        .map(({ actionId, enabled, keys, label }) => ({ actionId, enabled, keys, label }))
+    )
+  }, [keybinds])
+
+  useEffect(
+    () =>
+      window.api.onKeybindAction((actionId) => {
+        runKeybindAction(actionId as KeybindActionId)
+      }),
+    [runKeybindAction]
+  )
 
   useEffect(() => {
     const textMinimal = appSettings?.showAppText === false

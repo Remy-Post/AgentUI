@@ -27,6 +27,49 @@ export function extractSessionId(message: unknown): string | null {
   return typeof sessionId === 'string' && sessionId.length > 0 ? sessionId : null
 }
 
+function stringField(value: unknown, names: string[]): string | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const record = value as Record<string, unknown>
+  for (const name of names) {
+    const field = record[name]
+    if (typeof field === 'string' && field.trim()) return field
+  }
+  return undefined
+}
+
+function nestedStringField(value: unknown, objectNames: string[], fieldNames: string[]): string | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const record = value as Record<string, unknown>
+  for (const objectName of objectNames) {
+    const found = stringField(record[objectName], fieldNames)
+    if (found) return found
+  }
+  return undefined
+}
+
+function toolProgressData(
+  toolName: string,
+  message: SDKMessage,
+  status?: string,
+): Record<string, unknown> {
+  const taskId = stringField(message, ['task_id', 'taskId'])
+  const agentId = stringField(message, ['agent_id', 'agentID'])
+  const agentName =
+    stringField(message, ['agent_name', 'agentName', 'subagent_name', 'subagentName'])
+    ?? nestedStringField(message, ['agent', 'subagent'], ['name', 'agent_name', 'agentName'])
+  const description = stringField(message, ['description', 'message'])
+
+  return {
+    tool_name: toolName,
+    ...(taskId ? { task_id: taskId } : {}),
+    ...(agentId ? { agent_id: agentId } : {}),
+    ...(agentName ? { agent_name: agentName } : {}),
+    ...(status ? { status } : {}),
+    ...(description ? { description } : {}),
+    raw: message,
+  }
+}
+
 export function normalizeSdkMessage(message: SDKMessage): NormalizedStreamEvent | null {
   switch (message.type) {
     case 'assistant': {
@@ -49,9 +92,10 @@ export function normalizeSdkMessage(message: SDKMessage): NormalizedStreamEvent 
       return { name: 'tool_use_summary', data: { summary: (message as { summary?: unknown }).summary } }
     }
     case 'tool_progress': {
+      const toolName = (message as { tool_name?: string }).tool_name ?? 'unknown'
       return {
         name: 'tool_progress',
-        data: { tool_name: (message as { tool_name?: string }).tool_name ?? 'unknown', raw: message },
+        data: toolProgressData(toolName, message, 'running'),
       }
     }
     case 'system': {
@@ -73,20 +117,20 @@ export function normalizeSdkMessage(message: SDKMessage): NormalizedStreamEvent 
       if (subtype === 'task_started') {
         return {
           name: 'tool_progress',
-          data: { tool_name: 'Agent', raw: message },
+          data: toolProgressData('Agent', message, 'started'),
         }
       }
       if (subtype === 'task_progress') {
         const toolName = (message as { last_tool_name?: string }).last_tool_name ?? 'Agent'
         return {
           name: 'tool_progress',
-          data: { tool_name: toolName, raw: message },
+          data: toolProgressData(toolName, message, 'running'),
         }
       }
       if (subtype === 'task_notification' || subtype === 'task_updated') {
         return {
           name: 'tool_progress',
-          data: { tool_name: 'Agent', raw: message },
+          data: toolProgressData('Agent', message, subtype === 'task_updated' ? 'updated' : 'notification'),
         }
       }
       return null

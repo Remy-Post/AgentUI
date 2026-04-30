@@ -82,6 +82,8 @@ const ORCHESTRATOR_PROMPT = [
   'Use only the subagents made available for this turn; they were selected or created from MongoDB for this request.',
   'Spawn zero subagents only for simple answers, clarification questions, or tasks that do not need tools.',
   'When delegating, give each subagent a scoped task, minimal necessary context, expected output, and safety constraints.',
+  'For current, latest, weather, news, personal workspace, database, or other tool-backed data, answer only from actual tool or subagent results from this turn.',
+  'If the needed tool or connector is disabled, unavailable, unauthenticated, or returns no usable result, say that plainly and do not invent data.',
   'Ask a concise clarification question when the request is ambiguous, unsafe, or missing required context.',
   'Aggregate subagent results into one useful response. Do not expose internal orchestration details unless they help the user.',
 ].join('\n')

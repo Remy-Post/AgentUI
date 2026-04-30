@@ -261,6 +261,8 @@ export type SettingsDTO = {
   showAppText: boolean
   /** Show descriptive helper copy throughout the app. */
   showDescriptions: boolean
+  /** Color assigned to newly created conversations. Existing conversations keep their own color. */
+  defaultChatColor: ConversationColor | null
 }
 
 export type ToolDTO = {
@@ -299,6 +301,7 @@ export type UpdateSettingsRequest = Partial<{
   autoDreamEnabled: boolean
   showAppText: boolean
   showDescriptions: boolean
+  defaultChatColor: ConversationColor | null
 }>
 
 export type UpdateToolRequest = Partial<{
@@ -331,6 +334,11 @@ export type SSEToolUseSummaryPayload = {
 
 export type SSEToolProgressPayload = {
   tool_name: string
+  task_id?: string
+  agent_id?: string
+  agent_name?: string
+  status?: string
+  description?: string
   raw?: unknown
 }
 

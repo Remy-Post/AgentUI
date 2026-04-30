@@ -16,6 +16,8 @@ type Args = {
   help?: boolean
 }
 
+type TurnResult = Awaited<ReturnType<typeof runConversationTurn>>
+
 function parseArgs(argv: string[]): Args {
   const out: Args = {}
   for (let i = 0; i < argv.length; i += 1) {
@@ -77,6 +79,17 @@ function resolveModel(arg: string | undefined): string {
   if (arg in MODELS) return MODELS[arg as keyof typeof MODELS]
   if (arg.startsWith('claude-')) return arg
   return resolveLatestModelId(normalizeModelClass(arg))
+}
+
+function hasAccountingResult(turnResult: TurnResult | undefined): turnResult is TurnResult {
+  return Boolean(
+    turnResult &&
+      (typeof turnResult.totalCostUsd === 'number' ||
+        typeof turnResult.totalInputTokens === 'number' ||
+        typeof turnResult.totalOutputTokens === 'number' ||
+        typeof turnResult.totalCacheCreationInputTokens === 'number' ||
+        typeof turnResult.totalCacheReadInputTokens === 'number'),
+  )
 }
 
 function shortJson(value: unknown, max = 160): string {
@@ -172,20 +185,20 @@ async function runTurn(
     sse.write('error', { message })
   } finally {
     sse.close()
-    if (turnResult && typeof turnResult.totalCostUsd === 'number') {
+    if (hasAccountingResult(turnResult)) {
+      const inc: Record<string, number> = {
+        totalInputTokens: turnResult.totalInputTokens ?? 0,
+        totalOutputTokens: turnResult.totalOutputTokens ?? 0,
+        totalCacheCreationInputTokens: turnResult.totalCacheCreationInputTokens ?? 0,
+        totalCacheReadInputTokens: turnResult.totalCacheReadInputTokens ?? 0,
+      }
+      if (typeof turnResult.totalCostUsd === 'number') inc.totalCostUsd = turnResult.totalCostUsd
+
       await Conversation.updateOne(
         { _id: conversationId },
-        {
-          $inc: {
-            totalCostUsd: turnResult.totalCostUsd,
-            totalInputTokens: turnResult.totalInputTokens ?? 0,
-            totalOutputTokens: turnResult.totalOutputTokens ?? 0,
-            totalCacheCreationInputTokens: turnResult.totalCacheCreationInputTokens ?? 0,
-            totalCacheReadInputTokens: turnResult.totalCacheReadInputTokens ?? 0,
-          },
-        },
+        { $inc: inc },
       )
-      const cost = turnResult.totalCostUsd.toFixed(4)
+      const cost = (turnResult.totalCostUsd ?? 0).toFixed(4)
       const inTok = turnResult.totalInputTokens ?? 0
       const outTok = turnResult.totalOutputTokens ?? 0
       const ccTok = turnResult.totalCacheCreationInputTokens ?? 0

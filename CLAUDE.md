@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Runtime**: Node 20.18+ (Electron 39 ships Node 22). `"type": "module"` in both workspaces.
 - **Language**: TypeScript ~5.9.3 across both workspaces (pinned). `module: NodeNext` in `agent-server/`. `agent-client/` uses electron-toolkit's split tsconfigs (`tsconfig.node.json` for main + preload, `tsconfig.web.json` for renderer with bundler resolution).
-- **Server**: Express 5 + Mongoose 8. Default-import `mongoose` (named imports break under ESM). `@anthropic-ai/claude-agent-sdk ^0.2.114` drives chat turns; sessions persist via the SDK's `unstable_v2_createSession` (alpha API, disk-based skill/agent registration only).
+- **Server**: Express 5 + Mongoose 8. Default-import `mongoose` (named imports break under ESM). `@anthropic-ai/claude-agent-sdk ^0.2.114` drives chat turns via `query`; SDK session ids persist on conversations and resume through query options.
 - **Database**: MongoDB local at `mongodb://127.0.0.1:27017/agent-desk`. Assume `mongod` is running. Not bundled.
 - **Desktop shell**: Electron 39 + electron-vite 5 + electron-builder 26.
 - **Renderer**: React 19 + Vite 7 + Tailwind v4 (via `@tailwindcss/vite` plugin and `@import "tailwindcss"`). State: TanStack Query for server data, Zustand for UI/streaming state. Markdown via `react-markdown` + `remark-gfm`. Icons from `lucide-react`.
@@ -21,7 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Process model in production**: Electron main forks Express as a `utilityProcess` child, port handoff via `process.parentPort.postMessage({type:'ready', port})`. In dev, Express runs separately via `tsx watch`; main reads `AGENT_SERVER_PORT` (default 3001) from env.
 - **CSP**: applied at runtime via `session.defaultSession.webRequest.onHeadersReceived` because the chosen port is dynamic. The static `<meta>` CSP in `index.html` is omitted.
 - **Skills/Subagents/Tools source of truth**: MongoDB. The SDK does not accept in-memory `agents`/`skills` config, so the server materializes Mongo records to `agent-server/.claude/agents/<name>.md` and `.claude/skills/<name>/SKILL.md` via `src/agent/scaffold.ts`, and uses `settingSources: ['project']`. CRUD endpoints regenerate the affected files. The CLI uses the same Mongo registry — there is no separate seed file.
-- **Session caching**: one Claude SDK session per `conversationId`, LRU cache, max 8 concurrent, idle eviction at 30 min. Concurrent stream requests on the same conversation return 409. See `src/agent/session.ts`.
+- **Streaming concurrency**: one active stream per `conversationId`. Concurrent stream requests on the same conversation return 409. See `src/agent/session.ts`.
 - **`process.parentPort` is undefined when not launched by `utilityProcess.fork`**. Always guard with `?.`. The local type augmentation lives at `agent-server/src/types/globals.d.ts`.
 - **`@shared/*` alias** (in renderer only) maps to `agent-server/src/shared/types.ts`. Type-only imports. Never import runtime values from agent-server into the renderer.
 - **No tests, no linter wired in `agent-server/`**. `agent-client/` has eslint + prettier but they're not on a mandatory hook.
@@ -60,7 +60,7 @@ Single-user Electron desktop app structured as MERN: Mongoose + Express child pr
 Three runtime processes in production:
 
 1. **Electron main** (`agent-client/src/main/`). Decrypts the API key from `safeStorage`, forks the Express server via `utilityProcess.fork`, waits for `{type: 'ready', port}` on `parentPort`, applies a runtime CSP via `webRequest.onHeadersReceived` (because the chosen port is dynamic), and opens the BrowserWindow.
-2. **Express child** (`agent-server/src/server.ts`). Binds `127.0.0.1:0` so the OS picks a port, posts it back via `process.parentPort.postMessage`, hosts CRUD + SSE endpoints, owns the Claude Agent SDK session cache and the Mongoose connection.
+2. **Express child** (`agent-server/src/server.ts`). Binds `127.0.0.1:0` so the OS picks a port, posts it back via `process.parentPort.postMessage`, hosts CRUD + SSE endpoints, owns Agent SDK orchestration/runtime policy and the Mongoose connection.
 3. **Renderer**. React + TanStack Query for server state, Zustand for transient UI state. Calls Express via `fetch`. Streams turn events via fetch + manual SSE parsing (POST endpoint precludes `EventSource`).
 
 In dev, electron-vite runs the renderer + main; `tsx watch` runs the server separately. The main process skips the fork and reads `AGENT_SERVER_PORT` (default `3001`) from the env.
@@ -94,9 +94,9 @@ npm run cli -- --model opus                          # override model on a new c
 
 Output is bracketed lines on stdout, parseable by tools and humans alike: `[db]`, `[conversation]`, `[assistant]`, `[tool]`, `[tool:progress]`, `[memory]`, `[result]`, `[error]`, `[turn]` (final cost + token totals). The CLI shares Mongo with the desktop app, but the SDK session cache is per-process — do not run the CLI against a `conversationId` that the UI is currently streaming.
 
-### Session caching
+### Stream concurrency and SDK resume
 
-`src/agent/session.ts` keeps an LRU of one SDK session per `conversationId`. Hard cap 8 concurrent, idle eviction at 30 min. Stream errors drop the cache entry and emit a synthetic `result` SSE event. Concurrent stream requests on the same conversation return `409`.
+`src/agent/session.ts` tracks active streams by `conversationId`; concurrent stream requests on the same conversation return `409`. SDK continuity is handled by saving the emitted `sdkSessionId` on the conversation and passing it back as `resume` in query options.
 
 ### Secrets
 
@@ -107,7 +107,7 @@ API key flows: SettingsPanel → IPC `secrets:setApiKey` → main → `safeStora
 `agent-server/`:
 
 - `src/server.ts` — Express bootstrap, port handoff via `process.parentPort` (Electron utility process IPC).
-- `src/agent/session.ts` — LRU SDK session cache, hooks wiring (PreToolUse + `protectSensitiveFiles`), syncs Mongo to disk before opening any session.
+- `src/agent/session.ts` — active-stream guard used by REST, CLI-adjacent cleanup, and delete/error paths.
 - `src/agent/scaffold.ts` — Mongo to `.claude/` writer in overwrite mode; called on server startup and after every Skill/Subagent CRUD.
 - `src/agent/sse.ts` — `text/event-stream` writer with 30s heartbeat.
 - `src/routes/{conversations,messages,skills,subagents}.ts` — REST + SSE.

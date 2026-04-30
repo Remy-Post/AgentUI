@@ -56,7 +56,7 @@ Run commands from the repo root unless there is a specific reason to work inside
 ## Layout
 
 - `agent-client/`: Electron main/preload plus React renderer.
-- `agent-server/`: Express API, Claude Agent SDK session handling, Mongoose models, shared DTOs.
+- `agent-server/`: Express API, Claude Agent SDK orchestration, Mongoose models, shared DTOs.
 - `storage/`: local runtime data.
 - `AgentUI Preview.html`: standalone visual wireframe/reference.
 - `wireframe_v1.fig`: source design artifact.
@@ -66,7 +66,7 @@ Run commands from the repo root unless there is a specific reason to work inside
 Server:
 
 - `agent-server/src/server.ts`: Express bootstrap and Electron port handoff.
-- `agent-server/src/agent/session.ts`: Claude SDK session cache and hooks.
+- `agent-server/src/agent/session.ts`: active-stream guard for conversation concurrency.
 - `agent-server/src/agent/scaffold.ts`: Mongo-to-`.claude` materialization.
 - `agent-server/src/routes/`: REST and SSE routes.
 - `agent-server/src/db/models/`: Mongoose models.
@@ -94,4 +94,3 @@ Client:
 - For server route changes, add or update DTOs in `agent-server/src/shared/types.ts` when renderer-facing data changes.
 - For UI changes, inspect nearby components and CSS before editing.
 - Do not commit, reset, or discard changes unless the user explicitly asks.
-

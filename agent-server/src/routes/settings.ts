@@ -6,9 +6,11 @@ import {
   resolveLatestModelId,
   type ModelClass,
 } from '../../util/vars.ts'
-import type { SettingsDTO } from '../shared/types.ts'
+import type { ConversationColor, SettingsDTO } from '../shared/types.ts'
 
 const router = Router()
+
+const COLOR_VALUES = ['slate', 'sky', 'emerald', 'amber', 'rose', 'violet', 'stone'] as const
 
 type SettingsLean = {
   defaultModel?: string
@@ -19,6 +21,11 @@ type SettingsLean = {
   autoDreamEnabled?: boolean
   showAppText?: boolean
   showDescriptions?: boolean
+  defaultChatColor?: ConversationColor | null
+}
+
+function isConversationColor(value: unknown): value is ConversationColor {
+  return typeof value === 'string' && COLOR_VALUES.includes(value as ConversationColor)
 }
 
 function toDto(doc: SettingsLean | null | undefined): SettingsDTO {
@@ -33,6 +40,7 @@ function toDto(doc: SettingsLean | null | undefined): SettingsDTO {
     autoDreamEnabled: Boolean(doc?.autoDreamEnabled),
     showAppText: doc?.showAppText !== false,
     showDescriptions: doc?.showDescriptions !== false,
+    defaultChatColor: isConversationColor(doc?.defaultChatColor) ? doc.defaultChatColor : null,
   }
 }
 
@@ -74,6 +82,15 @@ router.put('/', async (req, res) => {
   }
   if (typeof body.showDescriptions === 'boolean') {
     update.showDescriptions = body.showDescriptions
+  }
+  if ('defaultChatColor' in body) {
+    if (body.defaultChatColor === null) {
+      update.defaultChatColor = null
+    } else if (isConversationColor(body.defaultChatColor)) {
+      update.defaultChatColor = body.defaultChatColor
+    } else {
+      return res.status(400).json({ error: 'invalid_default_chat_color' })
+    }
   }
   if (Object.keys(update).length === 0) return res.status(400).json({ error: 'no_op' })
 
